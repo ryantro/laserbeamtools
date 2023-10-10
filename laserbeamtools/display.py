@@ -251,6 +251,7 @@ def plot_image_analysis(o_image,
                         title='Original',
                         pixel_size=None,
                         units='µm',
+                        far_field_lens=None,
                         crop=False,
                         cmap='gist_ncar',
                         corner_fraction=0.035,
@@ -276,11 +277,13 @@ def plot_image_analysis(o_image,
         o_image: 2D image of laser beam
         title: (optional) title for upper left plot
         pixel_size: (optional) size of pixels
+        far_field_lens: (optional) far field lens focal length
         units: (optional) string used for units used on axes
         crop: (optional) crop image to integration rectangle
         cmap: (optional) colormap to use
     Returns:
         nothing
+
     """
     # only pass along arguments that apply to beam_size()
     bs_args = dict((k, kwargs[k]) for k in ['mask_diameters', 'max_iter', 'phi'] if k in kwargs)
@@ -297,8 +300,12 @@ def plot_image_analysis(o_image,
         unit_str = ''
         units = 'pixels'
         label = 'Pixels from Center'
-    else:
+    elif far_field_lens is None:
         scale = pixel_size
+        unit_str = '[%s]' % units
+        label = 'Distance from Center %s' % unit_str
+    else:
+        scale = pixel_size / far_field_lens
         unit_str = '[%s]' % units
         label = 'Distance from Center %s' % unit_str
 
@@ -352,6 +359,7 @@ def plot_image_analysis(o_image,
     # working image
     plt.subplot(2, 2, 2)
     extent = np.array([-xc_s, h_s - xc_s, v_s - yc_s, -yc_s])
+    # extent = np.array([-h_s/2, h_s/2, v_s/2, -v_s/2]) # would requre changing all shape coords as well
     im = plt.imshow(working_image, extent=extent, cmap=cmap)
     xp, yp = lbs.ellipse_arrays(xc, yc, dx, dy, phi) * scale
     plot_visible_dotted_line(xp - xc_s, yp - yc_s)
@@ -368,7 +376,13 @@ def plot_image_analysis(o_image,
     plt.ylim(v_s - yc_s, -yc_s)
     plt.xlabel(label)
     plt.ylabel(label)
-    plt.title('Image w/o background, center at (%.0f, %.0f) %s' % (xc_s, yc_s, units))
+    if pixel_size is None:
+        plt.title('Image w/o background, center: (%.0f, %.0f) %s' % (xc_s - (h_s/2), (v_s/2) - yc_s, units))
+    else:
+        plt.title('Image w/o background, center: (%.3f, %.3f) %s' % (xc_s - (h_s/2), (v_s/2) - yc_s, units))
+    # xc_s is relative to left edge in either pixel coords or um coords
+    # yc_s is relative to bottom ...
+
 
     # plot of values along semi-major axis
     _, _, z, s = lbs.major_axis_arrays(image, xc, yc, dx, dy, phi)
