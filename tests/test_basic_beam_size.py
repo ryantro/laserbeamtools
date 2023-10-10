@@ -4,7 +4,7 @@ Tests for functions in analysis.py.
 
 import matplotlib.pyplot as plt
 import numpy as np
-import laserbeamsize as lbs
+import laserbeamtools as lbs
 
 interactive = False
 h, v = 400, 400  # Image dimensions

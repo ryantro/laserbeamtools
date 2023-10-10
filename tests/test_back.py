@@ -4,7 +4,7 @@
 """Tests for functions in background.py."""
 
 import numpy as np
-import laserbeamsize as lbs
+import laserbeamtools as lbs
 
 
 # subtract_background_image

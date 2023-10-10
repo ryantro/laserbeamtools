@@ -1,5 +1,5 @@
 import numpy as np
-import laserbeamsize as lbs
+import laserbeamtools as lbs
 
 # Sample image
 image = np.zeros((100, 100))

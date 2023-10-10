@@ -6,7 +6,7 @@ Tests for functions in image_tools.py.
 """
 
 import numpy as np
-import laserbeamsize as lbs
+import laserbeamtools as lbs
 
 
 # rotate_points

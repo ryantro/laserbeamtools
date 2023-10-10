@@ -1,43 +1,7 @@
-laserbeamsize
-=============
+laserbeamtools
+==============
 
-by Scott Prahl
-
-.. image:: https://img.shields.io/pypi/v/laserbeamsize?color=68CA66
-   :target: https://pypi.org/project/laserbeamsize/
-   :alt: pypi
-
-.. image:: https://img.shields.io/github/v/tag/scottprahl/laserbeamsize?label=github&color=v
-   :target: https://github.com/scottprahl/laserbeamsize
-   :alt: github
-
-.. image:: https://img.shields.io/conda/vn/conda-forge/laserbeamsize?label=conda&color=68CA66
-   :target: https://github.com/conda-forge/laserbeamsize-feedstock
-   :alt: conda
-
-.. image:: https://zenodo.org/badge/107437651.svg
-   :target: https://zenodo.org/badge/latestdoi/107437651
-   :alt: zenodo
-
-|
-
-.. image:: https://img.shields.io/github/license/scottprahl/laserbeamsize?color=68CA66
-   :target: https://github.com/scottprahl/laserbeamsize/blob/master/LICENSE.txt
-   :alt: License
-
-.. image:: https://github.com/scottprahl/laserbeamsize/actions/workflows/test.yaml/badge.svg
-   :target: https://github.com/scottprahl/laserbeamsize/actions/workflows/test.yaml
-   :alt: testing
-
-.. image:: https://readthedocs.org/projects/laserbeamsize/badge?color=68CA66
-  :target: https://laserbeamsize.readthedocs.io
-  :alt: docs
-
-.. image:: https://img.shields.io/pypi/dm/laserbeamsize?color=68CA66
-   :target: https://pypi.org/project/laserbeamsize/
-   :alt: Downloads
-
-__________
+by Ryan Robinson 
 
 Simple and fast calculation of beam sizes from a single monochrome image based
 on the ISO 11146 method of variances.  Some effort has been made to make the 
@@ -46,10 +10,24 @@ algorithm less sensitive to background offset and noise.
 This module also supports M² calculations based on a series of images
 collected at various distances from the focused beam. 
 
+**Not yet updated for this fork.**
+
 Extensive documentation can be found at <https://laserbeamsize.readthedocs.io>
+
+Planned Added Features
+-----------------------
+
+- Knife edge measurements, e.g., 10%-90% and 5%-95% in minor and major axis.
+- Knife edge plots.
+- Measuring and lotting in angle space for far field images.
+- M² determination from near filed and far field camera images.
+- Rayfile generation for ZEMAX non-sequatial mode.
+- Live beam updates with Baslar Cameras
 
 Installation
 ------------
+
+**Not yet updated for this fork.**
 
 Use ``pip``::
     
@@ -63,7 +41,7 @@ or ``conda``::
 or use immediately by clicking the Google Colaboratory button below
 
 .. image:: https://colab.research.google.com/assets/colab-badge.svg
-  :target: https://colab.research.google.com/github/scottprahl/laserbeamsize/blob/master
+  :target: https://colab.research.google.com/github/ryantro/laserbeamsize/blob/master
   :alt: Colab
 
 Determining the beam size in an image
@@ -74,7 +52,7 @@ Finding the center and dimensions of a good beam image::
     import imageio.v3 as iio
     import laserbeamsize as lbs
     
-    file = "https://github.com/scottprahl/laserbeamsize/raw/master/docs/t-hene.pgm"
+    file = "https://github.com/ryantro/laserbeamsize/raw/master/docs/t-hene.pgm"
     image = iio.imread(file)
     
     x, y, dx, dy, phi = lbs.beam_size(image)
@@ -97,7 +75,7 @@ A visual report can be done with one function call::
     
 produces something like
 
-.. image:: https://raw.githubusercontent.com/scottprahl/laserbeamsize/master/docs/hene-report.png
+.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/hene-report.png
    :alt: HeNe report
 
 or::
@@ -107,7 +85,7 @@ or::
 
 produces something like
 
-.. image:: https://raw.githubusercontent.com/scottprahl/laserbeamsize/master/docs/astigmatic-report.png
+.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/astigmatic-report.png
    :alt: astigmatic report
 
 Non-gaussian beams work too::
@@ -119,8 +97,13 @@ Non-gaussian beams work too::
 
 produces
 
-.. image:: https://raw.githubusercontent.com/scottprahl/laserbeamsize/master/docs/tem02.png
+.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/tem02.png
    :alt: TEM02
+
+Determining the beam divergence of a far field image
+-----------------------------------------------------
+
+TODO
 
 Determining M² 
 --------------
@@ -137,7 +120,7 @@ than two Rayleigh distances::
 
 produces
 
-.. image:: https://raw.githubusercontent.com/scottprahl/laserbeamsize/master/docs/m2fit.png
+.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/m2fit.png
    :alt: fit for M2
 
 Here is an analysis of a set of images that do not meet the ISO 11146
@@ -166,7 +149,7 @@ the optical table.::
 
 produces
 
-.. image:: https://raw.githubusercontent.com/scottprahl/laserbeamsize/master/docs/sbmontage.png
+.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/sbmontage.png
    :alt: montage of laser images
 
 Here is one way to plot the fit using the above diameters::
@@ -179,11 +162,24 @@ of a pure gaussian beam.  Since real beams should diverge faster than this (not 
 there is some problem with the measurements (too few!).  On the other hand, the M² value 
 the semi-major axis 2.6±0.7 is consistent with the expected value of 3 for the TEM₁₀ mode.
 
-.. image:: https://raw.githubusercontent.com/scottprahl/laserbeamsize/master/docs/sbfit.png
+.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/sbfit.png
    :alt: fit
 
+
+Determining M² using near and far field beam profiles
+------------------------------------------------------
+
+TODO
+
+- Knife edge measurements, e.g., 10%-90% and 5%-95% in minor and major axis.
+- Knife edge plots.
+- Measuring and lotting in angle space for far field images.
+- M² determination from near filed and far field camera images.
+- Rayfile generation for ZEMAX non-sequatial mode.
+- Live beam updates with for Baslar Cameras imaging near and far fields.
+   - Maybe this should be a seperate library?
 
 License
 -------
 
-``laserbeamsize`` is licensed under the terms of the MIT license.
+``laserbeamtools`` is licensed under the terms of the MIT license.
