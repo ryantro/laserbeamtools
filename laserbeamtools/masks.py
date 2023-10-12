@@ -222,3 +222,79 @@ def iso_background_mask(image,
     background_mask = image < threshold
 
     return background_mask
+
+
+def knife_edge_mask(image, xc, yc, dx, dy, phi, s_f, mask_diameters=3, dir = 'x'):
+    """
+    Creates a mask that can be used for a knife edge measurement.
+
+    Functions off of utilizing a fraction, s_f (scaling fraction), to place knife position.
+
+    Fraction is based off of the rotated_rect_mask, where s_f = 0.0 blocks the entire beam with the knife at 1 end of the rectangle,
+    where as s_f = 1.0 shows the entire beam with the knife at the opposite end of the rectangle.
+
+    TODO
+    - Add more to the description.
+
+    Args:
+        image: the image to work with
+        xc: horizontal center of beam
+        yc: vertical center of beam
+        dx: ellipse diameter for axis closest to horizontal
+        dy: ellipse diameter for axis closest to vertical
+        phi: angle that elliptical beam is rotated [radians]
+        s_f: scale factor of how much to shrink mask [0.0 to 1.0]
+        mask_diameters: (optional) number of diameters to include
+        dir: (optional) direction of knife edge ['x' or 'y']
+        
+    Returns:
+        masked_image: 2D array with True values inside knife edge rectangle
+    """
+    # knife edge with blade moving in x direction
+    if dir == 'x':
+        # scaled down dx
+        sdx = s_f * dx
+
+        # difference between scaled and non-scaled
+        ddx = (dx - sdx) / 2
+
+        # projection scalars
+        s = np.sin(-phi)
+        c = np.cos(-phi)
+
+        # define offsets from start coords
+        ddx_x = ddx * c * mask_diameters    
+        ddy_x = ddx * s * mask_diameters
+
+        # define new start coords for rotated rect mask
+        xc_2 = xc - ddx_x
+        yc_2 = yc - ddy_x
+
+        return lbs.rotated_rect_mask(image, xc_2, yc_2, sdx, dy, phi, mask_diameters=mask_diameters)
+    
+    # knife edge with blade moving in y direction
+    elif dir == 'y':
+        # Scaled down dy
+        sdy = s_f * dy
+
+        # difference between scaled and non-scaled
+        ddy = (dy - sdy) / 2 
+
+        # projection scalars
+        s = np.sin(-phi)
+        c = np.cos(-phi)
+
+        # define offsets from start coords
+        ddx_y = ddy * s * mask_diameters    
+        ddy_y = ddy * c * mask_diameters
+
+        # define new start coords for rotated rect mask
+        xc_2 = xc - ddx_y
+        yc_2 = yc + ddy_y
+
+        return lbs.rotated_rect_mask(image, xc_2, yc_2, dx, sdy, phi)
+
+    # invalid input
+    else:
+        raise ValueError("dir needs to be 'x' or 'y'")
+        return None
