@@ -383,6 +383,8 @@ def plot_image_analysis(o_image,
     # xc_s is relative to left edge in either pixel coords or um coords
     # yc_s is relative to bottom ...
 
+    # TODO
+    #   - Determine if axis is summed or a single line of pixels
 
     # plot of values along semi-major axis
     _, _, z, s = lbs.major_axis_arrays(image, xc, yc, dx, dy, phi)
