@@ -15,6 +15,7 @@ import laserbeamtools as lbs
 __all__ = ('corner_mask',
            'perimeter_mask',
            'rotated_rect_mask',
+           'knife_edge_mask',
            'elliptical_mask',
            'iso_background_mask',
            )
@@ -230,11 +231,9 @@ def knife_edge_mask(image, xc, yc, dx, dy, phi, s_f, mask_diameters=3, dir = 'x'
 
     Functions off of utilizing a fraction, s_f (scaling fraction), to place knife position.
 
-    Fraction is based off of the rotated_rect_mask, where s_f = 0.0 blocks the entire beam with the knife at 1 end of the rectangle,
-    where as s_f = 1.0 shows the entire beam with the knife at the opposite end of the rectangle.
-
-    TODO
-    - Add more to the description.
+    Fraction is based off of the rotated_rect_mask, where s_f = 0.0 positions the knife fully 
+    blocking the mask at (-dx * mask_diameter) and s_f = 1.0 positions the knife fully exposing
+    the beam with the knife at (dx * mask_diameter).
 
     Args:
         image: the image to work with
@@ -250,6 +249,10 @@ def knife_edge_mask(image, xc, yc, dx, dy, phi, s_f, mask_diameters=3, dir = 'x'
     Returns:
         masked_image: 2D array with True values inside knife edge rectangle
     """
+    # projection scalars
+    s = np.sin(-phi)
+    c = np.cos(-phi)
+    
     # knife edge with blade moving in x direction
     if dir == 'x':
         # scaled down dx
@@ -257,10 +260,6 @@ def knife_edge_mask(image, xc, yc, dx, dy, phi, s_f, mask_diameters=3, dir = 'x'
 
         # difference between scaled and non-scaled
         ddx = (dx - sdx) / 2
-
-        # projection scalars
-        s = np.sin(-phi)
-        c = np.cos(-phi)
 
         # define offsets from start coords
         ddx_x = ddx * c * mask_diameters    
@@ -280,17 +279,13 @@ def knife_edge_mask(image, xc, yc, dx, dy, phi, s_f, mask_diameters=3, dir = 'x'
         # difference between scaled and non-scaled
         ddy = (dy - sdy) / 2 
 
-        # projection scalars
-        s = np.sin(-phi)
-        c = np.cos(-phi)
-
         # define offsets from start coords
         ddx_y = ddy * s * mask_diameters    
         ddy_y = ddy * c * mask_diameters
 
         # define new start coords for rotated rect mask
-        xc_2 = xc - ddx_y
-        yc_2 = yc + ddy_y
+        xc_2 = xc + ddx_y
+        yc_2 = yc - ddy_y
 
         return lbs.rotated_rect_mask(image, xc_2, yc_2, dx, sdy, phi)
 
