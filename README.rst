@@ -22,7 +22,6 @@ Planned Added Features
 - Measuring and lotting in angle space for far field images.
 - M² determination from near filed and far field camera images.
 - Rayfile generation for ZEMAX non-sequatial mode.
-- Live beam updates with Baslar Cameras
 
 Installation
 ------------
@@ -46,6 +45,26 @@ or use immediately by clicking the Google Colaboratory button below
 
 Determining the beam size in an image
 -------------------------------------
+Knife-Edge
+^^^^^^^^^^^
+
+To find the knife-edge widths of a beam::
+
+    # TODO:
+    # - Show code to produce plots
+
+.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/ke01.png
+   :alt: Knife-Edge 1
+
+or::
+
+    # More code
+
+.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/ke02.png
+   :alt: Knife-Edge 2
+
+D4_sigma
+^^^^^^^^^
 
 Finding the center and dimensions of a good beam image::
 
