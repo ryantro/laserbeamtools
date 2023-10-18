@@ -334,15 +334,15 @@ def plot_image_analysis(o_image,
     r_major = max(dx, dy) / 2.0
     r_minor = min(dx, dy) / 2.0
 
-    # scale all the dimensions
-    v_s = vv * scale
-    h_s = hh * scale
-    xc_s = xc * scale
-    yc_s = yc * scale
-    r_mag_s = r_major * scale
-    d_mag_s = r_mag_s * 2
-    r_min_s = r_minor * scale
-    d_min_s = r_min_s * 2
+    # scale all the dimensions to convert pixels to um, mrad, etc...
+    v_s = vv * scale # y image size
+    h_s = hh * scale # x image size
+    xc_s = xc * scale # beam center location in x
+    yc_s = yc * scale # beam center location in y
+    r_mag_s = r_major * scale # semi-major radius
+    d_mag_s = r_mag_s * 2 # semi-major diameter
+    r_min_s = r_minor * scale # semi-minor radius
+    d_min_s = r_min_s * 2 # semi-minor diameter
 
     plt.subplots(2, 2, figsize=(12, 12))
     plt.subplots_adjust(right=1.0)
@@ -367,7 +367,7 @@ def plot_image_analysis(o_image,
     xp, yp = lbs.axes_arrays(xc, yc, dx, dy, phi) * scale
     plot_visible_dotted_line(xp - xc_s, yp - yc_s)
 
-    xp, yp = lbs.rotated_rect_arrays(xc, yc, dx, dy, phi) * scale
+    xp, yp = lbs.rotated_rect_arrays(xc, yc, dx, dy, phi) * scale # TODO: Use these for KE calcs
     plot_visible_dotted_line(xp - xc_s, yp - yc_s)
 
     plt.colorbar(im, fraction=0.046 * v_s / h_s, pad=0.04)
@@ -383,8 +383,6 @@ def plot_image_analysis(o_image,
     # xc_s is relative to left edge in either pixel coords or um coords
     # yc_s is relative to bottom ...
 
-    # TODO
-    #   - Determine if axis is summed or a single line of pixels
 
     # plot of values along semi-major axis
     _, _, z, s = lbs.major_axis_arrays(image, xc, yc, dx, dy, phi)
