@@ -23,12 +23,12 @@ and other beam parameters from a sequence of images::
     help(laserbeamsize.m2_fit)
     help(laserbeamsize.m2_display)
 """
-__version__ = '2.0.3'
-__author__ = 'Scott Prahl'
-__email__ = 'scott.prahl@oit.edu'
+__version__ = '1.0.0'
+__author__ = 'Ryan Robinson'
+__email__ = 'ryan.thomas.robinson@gmail.com'
 __copyright__ = 'Copyright 2017-23, Scott Prahl'
 __license__ = 'MIT'
-__url__ = 'https://github.com/scottprahl/laserbeamsize'
+__url__ = 'https://github.com/ryantro/laserbeamtools'
 
 from .masks import *
 from .image_tools import *
