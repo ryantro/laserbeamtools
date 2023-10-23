@@ -9,11 +9,14 @@ Full documentation is available at <https://laserbeamsize.readthedocs.io>
 """
 
 import numpy as np
+import os
+from PIL import Image
 import scipy.ndimage
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 
-__all__ = ('rotate_image',
+__all__ = ('load_img',
+           'rotate_image',
            'axes_arrays',
            'ellipse_arrays',
            'major_axis_arrays',
@@ -26,6 +29,25 @@ __all__ = ('rotate_image',
            'create_plus_minus_cmap',
            )
 
+
+def load_img(full_path):
+    """ 
+    Load an image into an array 
+    
+    Args:
+        full_path: path to image file
+
+    Returns:
+        2D array of image
+    """
+    if os.path.isfile(full_path):
+        iobj = Image.open(full_path)
+        img = np.asarray(iobj)
+        return img
+    else:
+        print("No file found under:")
+        print(full_path)
+        return None
 
 def rotate_points(x, y, x0, y0, phi):
     """

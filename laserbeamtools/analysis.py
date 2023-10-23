@@ -32,6 +32,7 @@ import laserbeamtools as lbs
 
 __all__ = ('basic_beam_size',
            'beam_size',
+           'knife_edge',
            )
 
 
@@ -274,3 +275,29 @@ def basic_beam_size_naive(image):
     phi = 2 * np.arctan2(2 * xy, xx - yy)
 
     return xc, yc, dx, dy, phi
+
+def knife_edge(image, axis, kep=[0.05,0.95]):
+    """
+    Generates a single axis knife edge plot. axis=0 for x and 1 for y.
+
+    Arge:
+        img: 2D array of image with beam spot in it
+        axis: Direction to perform knife edge
+        kep: knife edge points, i.e., 5%-95%
+    Returns:
+        y_cum: knife edge plot
+        x: x axis in pixels
+        points: knife edge point coords
+    """
+    # Sum along axis and normalize
+    y = np.sum(image, axis=axis)
+    y_cum = np.cumsum(y, axis=0)
+    y_cum = y_cum/np.max(y_cum)
+
+    # Generate x axis
+    x = np.linspace(0, len(y_cum), len(y_cum), endpoint = False)
+
+    # Find points
+    points = np.interp(kep, y_cum, x)
+
+    return y_cum, x, points
