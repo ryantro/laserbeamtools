@@ -32,8 +32,11 @@ class Rayfile_gen:
     """
     def load_nf(self,
                 nf_img, 
-                pixel_size_um=4.4, 
-                magnification=0.59):    
+                pixel_size_um, 
+                magnification,
+                quash_noise=True,
+                crop=True
+                ) -> None:    
         """
         Loads in the near image
 
@@ -41,10 +44,23 @@ class Rayfile_gen:
             nf_img: near field image
             pixel_size_um: pixel size in micron
             magnification: magnification of the image
+            quash_noise: (optional) zero all noise below 3*nT
+            crop: (optional) crop rectangle to 3*D4sigma fullwidth
         """
 
         # Near field array
-        self.nf = np.copy(nf_img)    
+        self.nf = np.copy(nf_img)      
+
+        if quash_noise:
+            self.nf = lbs.subtract_corner_background(self.nf, iso_noise=False)
+
+        if crop:
+            x, y, dx, dy, phi = lbs.beam_size(self.nf)
+            self.nf, _, _ = lbs.crop_image_to_integration_rect(self.nf, x, y, dx, dy, phi)
+
+        # Near field parameters
+        self.mag = magnification
+        self.pixel_size_um = pixel_size_um   
 
         # Camera shape
         self.vv, self.hh = self.nf.shape
@@ -56,40 +72,72 @@ class Rayfile_gen:
 
         return None
     
-    def load_ff(self,
-                ff_img, 
-                pixel_size_um=4.4, 
-                flen_mm=80,
-                floor=0):
-        """
-        Loads the far field data. All far field data is embedded in the wff object.
 
-        Args:
-            ff_img:
-            pixel_size:
-            flen_mm:
-            floor:
-        """
-        self.wff = Weighted_far_field(ff_img=ff_img, pixel_size_um=pixel_size_um, 
-                                      flen_mm=flen_mm, floor=floor)
-        return None
-
-    def preview_data(self) -> None:
+    def preview_nf(self) -> None:
         """
         Preview data, useful before generating rayfile to ensure proper generation.
 
         Args:
 
         """
-        # Near field data
-        plt.imshow(self.nf, cmap='jet', extent=[-self.x1, self.x1, -self.y1, self.y1])
-        plt.xlabel('(um)')
-        plt.ylabel('(um)')
-
+        lbs.plot_knife_edge_analysis(self.nf, 
+                                     pixel_size=self.pixel_size/self.mag/1000, 
+                                     units='mm',
+                                     title='Near Field Knife-Edge Analsis')
+        
         return None
 
 
-    def open_spectrum_file(self, file_name, delimiter='\t', skip_start = 1):
+    def load_ff(self,
+                ff_img, 
+                pixel_size_um, 
+                flen_mm,
+                floor=0,
+                quash_noise=True,
+                crop=True,
+                precrop=True,
+                precrop_frac=0.7
+                ) -> None:
+        """
+        Loads the far field data. All far field data is embedded in the wff object.
+
+        Args:
+            ff_img: far field image
+            pixel_size: pixel size on the far field camera
+            flen_mm: focal length of the lens used to image the beam on the far field camera
+            floor: (optional) floor value, only consider pixels above this value
+            crop: (optional) crop the beam to 3 time the D4simga fullwidth
+            precrop: (optional) crop the beam before finding the D4sigma values used to crop the beam
+        """
+        ff = np.copy(ff_img)
+
+        if precrop:
+            h_frac = precrop_frac/2.0
+            vv,hh = ff.shape
+            vd = int(vv * h_frac)
+            hd = int(hh * h_frac)
+            ff = ff[vd:(vv-vd), hd:(hh-hd)]
+
+        if quash_noise:
+            ff = lbs.subtract_corner_background(ff, iso_noise=False)
+
+        if crop:
+            x, y, dx, dy, phi = lbs.beam_size(ff)
+            ff, _, _ = lbs.crop_image_to_integration_rect(ff, x, y, dx, dy, phi)
+
+        self.wff = Weighted_far_field(ff_img=ff, 
+                                      pixel_size_um=pixel_size_um, 
+                                      flen_mm=flen_mm, 
+                                      floor=floor)
+        
+        return None
+        
+
+    def open_spectrum_file(self, 
+                           file_name, 
+                           delimiter='\t', 
+                           skip_start = 1
+                           )->None:
         """
         Method to load spectrum data from a text file.
 
@@ -125,7 +173,10 @@ class Rayfile_gen:
         return None
 
 
-    def load_spectrum(self, wavelengths, intensities):
+    def load_spectrum(self, 
+                      wavelengths, 
+                      intensities
+                      )->None:
         """
         Method to load spectrum data from a text file.
 
@@ -147,7 +198,9 @@ class Rayfile_gen:
 
         return None
         
-    def generate(self, output_filename='custom_rayfile.DAT') -> None:
+    def generate(self, 
+                 output_filename='custom_rayfile.DAT'
+                 )->None:
         """
         Method to actually generate the rayfile.
 
@@ -204,7 +257,11 @@ class Weighted_far_field:
         v (list): list off all unit vectors built from the far field image.
     """
 
-    def __init__(self, ff_img, pixel_size_um=4.4, flen_mm=80, floor=0):
+    def __init__(self, 
+                 ff_img, 
+                 pixel_size_um=4.4, 
+                 flen_mm=80, 
+                 floor=0):
         """
         Initialize the Weighted_far_field object.
 
@@ -223,9 +280,9 @@ class Weighted_far_field:
         
         # Camera shape
         vv, hh = self.ff.shape
-        s = pixel_size_um / flen
-        h_s = hh * s
-        v_s = vv * s
+        self.s = pixel_size_um / flen
+        h_s = hh * self.s
+        v_s = vv * self.s
         x1 = h_s / 2
         y1 = v_s / 2
   
@@ -247,8 +304,8 @@ class Weighted_far_field:
                     tmp = tmp + self.ff[i,j] 
                     
                     # Ray pointing
-                    tx_ = (j * s) - x1          # Pointing in x
-                    ty_ = (i * s) - y1          # Pointing in y
+                    tx_ = (j * self.s) - x1          # Pointing in x
+                    ty_ = (i * self.s) - y1          # Pointing in y
                     
                     # Convert to unit vector
                     zvc = (1 + tx_**2 + ty_**2)**(-1/2) # Z component of vector
@@ -267,7 +324,17 @@ class Weighted_far_field:
         
         return
 
-    def get_vector(self):
+    def preview_ff(self) -> None:
+        """
+        Preview the data from the far field.
+        """
+        lbs.plot_knife_edge_analysis(self.ff, 
+                                     pixel_size=self.s, 
+                                     units='mrad', 
+                                     title='Far Field Knife-Edge Analysis')
+        return
+
+    def get_vector(self) -> None:
         """
         Input a value between 0 and 1, returns a ray string.
 
@@ -284,7 +351,11 @@ class Weighted_far_field:
         return "0 0 1"
 
 
-def open_spectrum(file_name, delimiter='\t', skip_start = 1, normalize=True):
+def open_spectrum(file_name, 
+                  delimiter='\t', 
+                  skip_start = 1, 
+                  normalize=True
+                  )->None:
     """
     Method to load spectrum data from a text file.
 
