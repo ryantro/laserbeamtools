@@ -26,7 +26,7 @@ and other beam parameters from a sequence of images::
 __version__ = '1.0.0'
 __author__ = 'Ryan Robinson'
 __email__ = 'ryan.thomas.robinson@gmail.com'
-__copyright__ = 'Copyright 2017-23, Scott Prahl'
+__copyright__ = 'Copyright 2017-23, Ryan Robinson'
 __license__ = 'MIT'
 __url__ = 'https://github.com/ryantro/laserbeamtools'
 
@@ -38,3 +38,4 @@ from .display import *
 from .gaussian import *
 from .m2_fit import *
 from .m2_display import *
+from .rayfile_gen import *

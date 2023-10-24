@@ -46,7 +46,9 @@ __all__ = ('beam_ellipticity',
            'plot_beam_diagram',
            'plot_image_analysis',
            'plot_image_and_fit',
-           'plot_image_montage'
+           'plot_image_montage',
+           'plot_knife_edge_analysis',
+           'plot_knife_edge_analysis_slow'
            )
 
 
@@ -251,7 +253,6 @@ def plot_image_analysis(o_image,
                         title='Original',
                         pixel_size=None,
                         units='µm',
-                        far_field_lens=None,
                         crop=False,
                         cmap='gist_ncar',
                         corner_fraction=0.035,
@@ -300,14 +301,11 @@ def plot_image_analysis(o_image,
         unit_str = ''
         units = 'pixels'
         label = 'Pixels from Center'
-    elif far_field_lens is None:
+    else:
         scale = pixel_size
         unit_str = '[%s]' % units
         label = 'Distance from Center %s' % unit_str
-    else:
-        scale = pixel_size / far_field_lens
-        unit_str = '[%s]' % units
-        label = 'Distance from Center %s' % unit_str
+    
 
     # crop image as appropriate
     if isinstance(crop, list):
@@ -529,3 +527,417 @@ def plot_image_montage(images,
         plt.axis("off")
 
     return dx, dy
+
+
+def plot_knife_edge_analysis(img,
+                             title='Knife-Edge Analysis', 
+                             pixel_size=None, 
+                             units='µm', 
+                             kep=[0.05, 0.95],
+                             rotate=True,
+                             cmap='gist_ncar',
+                             corner_fraction=0.035,
+                             nT=3,
+                             iso_noise=True,
+                             **kwargs):
+    """
+    Fast knife-edge method, works by rotating the image and then summing the up all the pixels along the X and Y axis.
+
+    Args:
+        img: noise subtracted image
+        title: plot title
+        pixel_size: (optional) size of pixels
+        units: image units, can be used for converting far field
+        kep: (optional) knife-edge points to measure beam from, default is 5%-95%
+        rotate: Allow knife-edge to rotate with major/minor axis
+    Returns:
+        nothing
+    """
+    # determine scaling and labels
+    if pixel_size is None:
+        scale = 1
+        unit_str = ''
+        units = 'pixels'
+        # label = 'Pixels from Center'
+    else:
+        scale = pixel_size
+        unit_str = units
+        # label = 'Distance from Center %s' % unit_str
+    
+    # only pass along arguments that apply to beam_size()
+    bs_args = dict((k, kwargs[k]) for k in ['mask_diameters', 'max_iter', 'phi'] if k in kwargs)
+    bs_args['iso_noise'] = iso_noise
+    bs_args['nT'] = nT
+    bs_args['corner_fraction'] = corner_fraction
+
+    # find center and diameters
+    x, y, dx, dy, phi = lbs.beam_size(img, **bs_args)
+
+    # scale all the dimensions to units of interest
+    vv,hh = img.shape
+    v_s = vv * scale
+    h_s = hh * scale
+    x_s = x * scale
+    y_s = y * scale
+    dx_s = dx * scale
+    dy_s = dy * scale
+    major_s = np.max([dx_s, dy_s])
+    minor_s = np.min([dx_s, dy_s])
+
+    # Subtract background
+    wimg = lbs.subtract_iso_background(img)
+
+    # Mask beam
+    mask = lbs.rotated_rect_mask(wimg, x, y, dx, dy, phi)
+    
+    # Working image
+    mwimg = np.copy(wimg)
+    
+    # Apply mask
+    mwimg[mask < 0] = 0
+    
+    # Rotated image
+    # --------------------------------------------------------------------------------------------------- #
+    if rotate:
+        img_r = lbs.rotate_image(mwimg, x, y, -phi)
+        x_r_, y_r_, dx_r_, dy_r_, _ = lbs.beam_size(img_r, **bs_args)
+        img_r, _, _  = lbs.crop_image_to_integration_rect(img_r, x_r_, y_r_, dx_r_, dy_r_, 0)
+        x_r, y_r, dx_r, dy_r, phi_r = lbs.beam_size(img_r, **bs_args)
+    else:
+        img_r = np.copy(mwimg)
+        x_r_, y_r_, dx_r_, dy_r_, _ = lbs.beam_size(img_r, **bs_args)
+        img_r, _, _  = lbs.crop_image_to_integration_rect(img_r, x_r_, y_r_, dx_r_, dy_r_, phi)
+        x_r, y_r, dx_r, dy_r, phi_r = lbs.beam_size(img_r, **bs_args)
+
+    vv_r,hh_r = img_r.shape
+    v_rs = vv_r * scale
+    h_rs = hh_r * scale
+    x_rs = x_r * scale
+    y_rs = y_r * scale
+    dx_rs = dx_r * scale
+    dy_rs = dy_r * scale
+    major_rs = np.max([dx_rs, dy_rs])
+    minor_rs = np.min([dx_rs, dy_rs])
+
+    # Knife edge math
+    x_scan_y_axis, x_scan_x_axis, bwsx = lbs.knife_edge(img_r, 0, kep)
+    y_scan_y_axis, y_scan_x_axis, bwsy = lbs.knife_edge(img_r, 1, kep)
+
+    # plotting
+    # --------------------------------------------------------------------------------------------------- #
+    # Create subplots
+    fig, axs = plt.subplots(2, 2, figsize=(18, 12))
+    fig.suptitle(title, fontsize=30)
+
+    # [0,0] - Basic Plot
+    # --------------------------------------------------------------------------------------------------- #
+    extent = np.array([-h_s/2, h_s/2, v_s/2, -v_s/2])
+    im = axs[0,0].imshow(mwimg, extent=extent, cmap=cmap) #, cmap='gist_ncar')
+    plt.colorbar(im, ax=axs[0,0], fraction=0.046 * v_s / h_s, pad=0.04)
+
+    # Rectangular array
+    xp,yp = lbs.rotated_rect_arrays(x, y, dx, dy, phi) * scale
+    axs[0,0].plot(xp-h_s/2,yp-v_s/2,':y')
+
+    # Ellipse array
+    xp,yp = lbs.ellipse_arrays(x, y, dx, dy, phi) * scale
+    axs[0,0].plot(xp-h_s/2,yp-v_s/2,':y')
+
+    # Axes array
+    xp, yp = lbs.axes_arrays(x, y, dx, dy, phi) * scale
+    axs[0,0].plot(xp-h_s/2,yp-v_s/2,':y')
+
+    # Crosshair array
+    xp, yp = lbs.axes_arrays(hh/2, vv/2, hh/3, vv/3, 0) * scale
+    axs[0,0].plot(xp-h_s/2,yp-v_s/2,':r')#,linewidth=1)
+
+    # Plot formatting
+    axs[0,0].set_title('ISO Noise Subtracted Image', fontsize=22)
+    axs[0,0].set_xlim(-h_s/2, h_s/2)
+    axs[0,0].set_ylim(v_s/2, -v_s/2)
+    axs[0,0].set_xlabel("X Coordinate (%s)" % unit_str, fontsize=16)
+    axs[0,0].set_ylabel("Y Coordinate (%s)" % unit_str, fontsize=16)
+
+    # Beam stats
+    m1 = 'Centroid: (%.2f, %.2f) %s' % (x*scale - h_s/2, y*scale - v_s/2, unit_str)
+    m2 = 'D4\u03C3:        (%.2f, %.2f) %s' % (dx_s, dy_s, unit_str)
+    m3 = 'D4\u03C3 Circ: %.2f' % (minor_s/major_s)
+    m4 = 'Angle:      %.2f\N{DEGREE SIGN}' % (phi*180/np.pi)
+    axs[0,0].text(-h_s/2 * 0.95, v_s/2*0.95, '\n'.join([m1,m2,m3,m4]), va='bottom', ha='left',c='white',fontsize=10)
+    
+    # [0,1] Rotated Plot
+    # --------------------------------------------------------------------------------------------------- #
+    extent_r = np.array([-h_rs/2, h_rs/2, v_rs/2, -v_rs/2])
+    im = axs[0,1].imshow(img_r, extent=extent_r, cmap=cmap)
+    plt.colorbar(im, ax=axs[0,1], fraction=0.046 * v_s / h_s, pad=0.04)
+
+    # Rectangular array
+    xp,yp = lbs.rotated_rect_arrays(x_r, y_r, dx_r, dy_r, phi_r) * scale
+    axs[0,1].plot(xp-h_rs/2,yp-v_rs/2,':y')
+
+    # Ellipse array
+    xp,yp = lbs.ellipse_arrays(x_r, y_r, dx_r, dy_r, phi_r) * scale
+    axs[0,1].plot(xp-h_rs/2,yp-v_rs/2,':y')
+
+    # Axes array
+    xp, yp = lbs.axes_arrays(x_r, y_r, dx_r, dy_r, phi_r) * scale
+    axs[0,1].plot(xp-h_rs/2,yp-v_rs/2,':y')
+
+    # Crosshair array
+    xp, yp = lbs.axes_arrays(hh_r/2, vv_r/2, hh_r/3, vv_r/3, 0) * scale
+    axs[0,1].plot(xp-h_rs/2,yp-v_rs/2,':r')
+
+    # Plot formatting
+    axs[0,1].set_title('Image Oriented To Knife-Edge Axis', fontsize=22)
+    axs[0,1].set_xlim(-h_rs/2, h_rs/2)
+    axs[0,1].set_ylim(v_rs/2, -v_rs/2)
+    axs[0,1].set_xlabel("X Coordinate (%s)" % unit_str, fontsize=16)
+    axs[0,1].set_ylabel("Y Coordinate (%s)" % unit_str, fontsize=16)
+    
+    # Beam stats
+    m1 = 'Centroid: (%.2f, %.2f) %s' % (x_r*scale - h_rs/2, y_r*scale - v_rs/2, unit_str)
+    m2 = 'D4\u03C3:        (%.2f, %.2f) %s' % (dx_rs, dy_rs, unit_str)
+    m3 = 'D4\u03C3 Circ: %.2f' % (minor_rs/major_rs)
+    m4 = 'Angle:      %.2f\N{DEGREE SIGN}' % (phi_r*180/np.pi)
+    axs[0,1].text(-h_rs/2 * 0.95, v_rs/2*0.95, '\n'.join([m1,m2,m3,m4]), va='bottom', ha='left',c='white',fontsize=10)
+
+    # [1,X] - Knife edge plot for x scan
+    # --------------------------------------------------------------------------------------------------- #
+    axs[1,0].set_title("Knife-Edge Plot, Minor Axis", fontsize=22)
+    axs[1,1].set_title("Knife-Edge Plot, Major Axis", fontsize=22)
+    
+    # Find major and minor axis
+    if dx < dy:
+        # x is minor axis
+        ax1 = (1,0)
+        ax2 = (1,1)
+    else:
+        # x is major axis
+        ax1 = (1,1)
+        ax2 = (1,0)
+
+    axs[ax1].set_xlabel("Knife Position (%s)" % unit_str, fontsize=16)
+    axs[ax1].set_ylabel("Fractional Power", fontsize = 16)
+    axs[ax1].plot(x_scan_x_axis * scale, x_scan_y_axis)
+    axs[ax1].grid('on')
+    
+    # Plot lines
+    axs[ax1].axvline(x=bwsx[0] * scale, ymin=0.05, ymax=0.95, color='b', label='{:.0f}% Point'.format(kep[0]*100), ls='--')
+    axs[ax1].axvline(x=bwsx[1] * scale, ymin=0.05, ymax=0.95, color='b', label='{:.0f}% Point'.format(kep[1]*100), ls='--')
+
+    # Show distance on plot
+    axs[ax1].annotate('', (bwsx[0] * scale, kep[0]), (bwsx[1] * scale, kep[0]), arrowprops={'arrowstyle': '<->'})
+    axs[ax1].text(np.average(bwsx) * scale, 1.1 * kep[0], 'dx=%.2f %s' % ((bwsx[1]-bwsx[0]) * scale, unit_str), va='bottom', ha='center')
+    
+    # [1,!X] - Knife edge plot for y scan
+    # --------------------------------------------------------------------------------------------------- #
+    axs[ax2].set_xlabel("Knife Position (%s)" % unit_str, fontsize=16)
+    axs[ax2].set_ylabel("Fractional Power", fontsize = 16)
+    axs[ax2].plot(y_scan_x_axis * scale, y_scan_y_axis)
+    axs[ax2].grid('on')
+
+    # Plot lines
+    axs[ax2].axvline(x=bwsy[0] * scale, ymin=0.05, ymax=0.95, color='b', label='{:.0f}% Point'.format(kep[0]*100), ls='--')
+    axs[ax2].axvline(x=bwsy[1] * scale, ymin=0.05, ymax=0.95, color='b', label='{:.0f}% Point'.format(kep[1]*100), ls='--')
+
+    # Show distance on plot
+    axs[ax2].annotate('', (bwsy[0] * scale, kep[0]), (bwsy[1] * scale, kep[0]), arrowprops={'arrowstyle': '<->'})
+    axs[ax2].text(np.average(bwsy) * scale, 1.1 * kep[0], 'dy=%.2f %s' % ((bwsy[1]-bwsy[0]) * scale, unit_str), va='bottom', ha='center')
+
+    fig.tight_layout(pad=2)
+    
+    plt.show()
+
+    return
+
+def plot_knife_edge_analysis_slow(img, 
+                                  pixel_size=None, 
+                                  units='µm', 
+                                  points = 50, 
+                                  kep=[0.05, 0.95], 
+                                  title='Knife-Edge Analysis'):
+    """
+    Slow knife-edge method. Works by creating a rotated mask that expands to cover varying fractions of the beam. The 'points' 
+    input specifies how many points to include between the start and end knife points. Knife region is defines as the rectangle
+    that is 3 times the d4sigma width.
+
+    Args:
+        img: noise subtracted image
+        pixel_size: (optional) size of pixels
+        points: number of knife-edge points
+        kep: knife-edge points to measure beam from
+        title: plot title
+    """
+    # determine scaling and labels
+    if pixel_size is None:
+        scale = 1
+        unit_str = ''
+        units = 'pixels'
+        # label = 'Pixels from Center'
+    else:
+        scale = pixel_size
+        unit_str = units
+        # label = 'Distance from Center %s' % unit_str
+    
+    # Parse beam
+    x, y, dx, dy, phi = lbs.beam_size(img)
+
+    # scale all the dimensions to units of interest
+    vv,hh = img.shape
+    v_s = vv * scale
+    h_s = hh * scale
+    x_s = x * scale
+    y_s = y * scale
+    dx_s = dx * scale
+    dy_s = dy * scale
+    major_s = np.max([dx_s, dy_s])
+    minor_s = np.min([dx_s, dy_s])
+
+    # Subtract background
+    wimg = lbs.subtract_iso_background(img)
+
+    # Mask beam
+    mask = lbs.rotated_rect_mask(wimg, x, y, dx, dy, phi)
+    
+    # Working image
+    mwimg = np.copy(wimg)
+    
+    # Apply mask
+    mwimg[mask < 0] = 0
+    
+    # Knife edge math
+    # --------------------------------------------------------------------------------------------------- #
+
+    # Create arrays for x axis
+    x_scan_x_axis = np.linspace(0,1,points)
+    x_scan_y_axis = np.full_like(x_scan_x_axis, 0.0)
+    
+    # Create arrays for y axis
+    y_scan_x_axis = np.linspace(0,1,points)
+    y_scan_y_axis = np.full_like(x_scan_x_axis, 0.0)
+
+    # Collect knife-edge data for x scan
+    for i, x_val in enumerate(x_scan_x_axis):
+        mask = lbs.knife_edge_mask(mwimg, x, y, dx, dy, phi, x_val, dir = 'x')
+        x_scan_y_axis[i] = np.sum(wimg * mask)
+
+    # Normalize knife edge
+    x_scan_y_axis = x_scan_y_axis/np.max(x_scan_y_axis)
+    
+    # Collect knife-edge data for y scan
+    for i, x_val in enumerate(y_scan_x_axis):
+        mask = lbs.knife_edge_mask(mwimg, x, y, dx, dy, phi, x_val, dir = 'y')
+        y_scan_y_axis[i] = np.sum(wimg * mask)
+
+    # Normalize knife edge
+    y_scan_y_axis = y_scan_y_axis/np.max(y_scan_y_axis)
+
+    # plotting
+    # --------------------------------------------------------------------------------------------------- #
+    # Create subplots
+    fig, axs = plt.subplots(2, 2, figsize=(18, 12))
+    
+    fig.suptitle(title, fontsize=30)
+
+    # Plot 1
+    # --------------------------------------------------------------------------------------------------- #
+    im = axs[0,0].imshow(img) #, cmap='gist_ncar')
+    plt.colorbar(im, ax=axs[0,0])
+    axs[0,0].set_title('Raw Image', fontsize=22)
+    axs[0,0].set_xlabel("X Coordinate (pixel)", fontsize=16)
+    axs[0,0].set_ylabel("Y Coordinate (pixel)", fontsize=16)
+
+    # Plot 2
+    # --------------------------------------------------------------------------------------------------- #
+    extent = np.array([-h_s/2, h_s/2, v_s/2, -v_s/2])
+    axs[0,1].imshow(mwimg, extent=extent) #, cmap='gist_ncar')
+    plt.colorbar(im, ax=axs[0,1])
+    axs[0,1].set_title('ISO Noise Subtracted Image', fontsize=22)
+
+    # Plot masks
+    xp,yp = lbs.rotated_rect_arrays(x, y, dx, dy, phi) * scale
+    axs[0,1].plot(xp-h_s/2,yp-v_s/2,':y')
+
+    xp,yp = lbs.ellipse_arrays(x, y, dx, dy, phi) * scale
+    axs[0,1].plot(xp-h_s/2,yp-v_s/2,':y')
+
+
+    xp, yp = lbs.axes_arrays(x, y, dx, dy, phi) * scale
+    axs[0,1].plot(xp-h_s/2,yp-v_s/2,':y')
+
+    # Center Crosshairs
+    xp, yp = lbs.axes_arrays(hh/2, vv/2, hh/3, vv/3, 0) * scale
+    axs[0,1].plot(xp-h_s/2,yp-v_s/2,':r')#,linewidth=1)
+
+    # Limit plot size
+    #vv, hh = wimg.shape
+    axs[0,1].set_xlim(-h_s/2, h_s/2)
+    axs[0,1].set_ylim(v_s/2, -v_s/2)
+    axs[0,1].set_xlabel("X Coordinate (%s)" % unit_str, fontsize=16)
+    axs[0,1].set_ylabel("Y Coordinate (%s)" % unit_str, fontsize=16)
+
+    m1 = 'Centroid: (%.2f, %.2f) %s' % (x*scale - h_s/2, y*scale - v_s/2, unit_str)
+    m2 = 'D4\u03C3:        (%.2f, %.2f) %s' % (dx_s, dy_s, unit_str)
+    m3 = 'D4\u03C3 Circ: %.2f' % (minor_s/major_s)
+    m4 = 'Angle:      %.2f\N{DEGREE SIGN}' % (phi*180/np.pi)
+    axs[0,1].text(h_s/2*0.05, v_s/2*0.95, '\n'.join([m1,m2,m3,m4]), va='bottom', ha='left',c='white',fontsize=10)
+    
+    # Knife edge plots
+    # --------------------------------------------------------------------------------------------------- #
+    axs[1,0].set_title("Knife-Edge Plot, Minor Axis", fontsize=22)
+    axs[1,1].set_title("Knife-Edge Plot, Major Axis", fontsize=22)
+    # Find major and minor axis
+    if dx < dy:
+        # x is minor axis
+        ax1 = (1,0)
+        ax2 = (1,1)
+    else:
+        # x is major axis
+        ax1 = (1,1)
+        ax2 = (1,0)
+
+    # Convert x axis to pixels
+    x_scan_x_axis_p = x_scan_x_axis * dx * 3
+
+    # Interpolate values
+    bws = np.interp([kep[0], kep[1]], x_scan_y_axis, x_scan_x_axis_p)
+
+    axs[ax1].set_xlabel("Knife Position (%s)" % unit_str, fontsize=16)
+    axs[ax1].set_ylabel("Fractional Power", fontsize = 16)
+    axs[ax1].plot(x_scan_x_axis_p * scale, x_scan_y_axis)
+    axs[ax1].grid('on')
+    
+    # Plot lines
+    axs[ax1].axvline(x=bws[0] * scale, ymin=0.05, ymax=0.95, color='b', label='{:.0f}% Point'.format(kep[0]*100), ls='--')
+    axs[ax1].axvline(x=bws[1] * scale, ymin=0.05, ymax=0.95, color='b', label='{:.0f}% Point'.format(kep[1]*100), ls='--')
+
+    # Show distance on plot
+    axs[ax1].annotate('', (bws[0] * scale, kep[0]), (bws[1] * scale, kep[0]), arrowprops={'arrowstyle': '<->'})
+    axs[ax1].text(np.average(bws) * scale, 1.1 * kep[0], 'dx=%.2f %s' % ((bws[1]-bws[0]) * scale, unit_str), va='bottom', ha='center')
+    
+    # Knife edge plots
+    # --------------------------------------------------------------------------------------------------- #
+    # Convert x axis to pixels
+    y_scan_x_axis_p = y_scan_x_axis * dy * 3
+
+    # Interpolate values
+    bws = np.interp([kep[0], kep[1]], y_scan_y_axis, y_scan_x_axis_p)
+
+    axs[ax2].set_xlabel("Knife Position (%s)" % unit_str, fontsize=16)
+    axs[ax2].set_ylabel("Fractional Power", fontsize = 16)
+    axs[ax2].plot(y_scan_x_axis_p * scale, y_scan_y_axis)
+    axs[ax2].grid('on')
+
+    # Plot lines
+    axs[ax2].axvline(x=bws[0] * scale, ymin=0.05, ymax=0.95, color='b', label='{:.0f}% Point'.format(kep[0]*100), ls='--')
+    axs[ax2].axvline(x=bws[1] * scale, ymin=0.05, ymax=0.95, color='b', label='{:.0f}% Point'.format(kep[1]*100), ls='--')
+
+    # Show distance on plot
+    axs[ax2].annotate('', (bws[0] * scale, kep[0]), (bws[1] * scale, kep[0]), arrowprops={'arrowstyle': '<->'})
+    axs[ax2].text(np.average(bws) * scale, 1.1 * kep[0], 'dy=%.2f %s' % ((bws[1]-bws[0]) * scale, unit_str), va='bottom', ha='center')
+
+    fig.tight_layout(pad=2)
+
+    plt.show()
+
+    return

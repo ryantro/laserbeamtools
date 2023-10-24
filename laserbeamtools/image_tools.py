@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 
 __all__ = ('load_img',
+           'parse_ascii',
            'rotate_image',
            'axes_arrays',
            'ellipse_arrays',
@@ -41,13 +42,52 @@ def load_img(full_path):
         2D array of image
     """
     if os.path.isfile(full_path):
-        iobj = Image.open(full_path)
-        img = np.asarray(iobj)
-        return img
+        if('ascii.csv' in full_path):
+            return parse_ascii(full_path)
+        else:
+            iobj = Image.open(full_path)
+            img = np.asarray(iobj)
+            return img
     else:
         print("No file found under:")
         print(full_path)
         return None
+    
+
+def parse_ascii(filename):
+    """
+    Load an ASCII file into array. ASCII files are returned when 
+    saving array data from in the BeamGage software suite.
+
+    Args:
+        filename: path to image file
+
+    Returns:
+        A_: 2D numpy array of image
+    """
+    slens = []
+    A = []
+    with open(filename) as f:
+        for rows in f:
+            s = rows.split(',')
+            slens.append(len(s))
+        maxlen = max(slens)    
+    with open(filename) as f:
+        for rows in f:
+            s1 = rows.strip('\n')
+            s = s1.split(',')
+            for i in range(0,maxlen):
+                if (i >= len(s)):
+                    s.append(0.0)
+                elif (s[i] == ''):
+                    s[i] = 0.0
+                else:
+                    s[i] = float(s[i])
+                i = i+1
+            A.append(s)
+    A_ = np.array(A)
+    return A_
+
 
 def rotate_points(x, y, x0, y0, phi):
     """
