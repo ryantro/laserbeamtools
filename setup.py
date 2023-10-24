@@ -2,7 +2,7 @@ import re
 import os.path
 from setuptools import setup
 
-project = 'laserbeamsize'
+project = 'laserbeamtools'
 
 
 def get_init_property(prop):
