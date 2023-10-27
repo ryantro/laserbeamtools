@@ -193,7 +193,7 @@ class Rayfile_gen:
 
         # intensity data
         intensities = np.asarray(intensities)
-        intensities = intensities - np.min(intensities)
+        # intensities = intensities - np.min(intensities)
         self.intensities = intensities/np.sum(intensities)
 
         return None

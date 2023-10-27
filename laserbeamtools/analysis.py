@@ -282,7 +282,7 @@ def knife_edge(image, axis, kep=[0.05,0.95]):
 
     Arge:
         img: 2D array of image with beam spot in it
-        axis: Direction to perform knife edge
+        axis: Direction to perform knife edge, 0 for x, 1 for y
         kep: knife edge points, i.e., 5%-95%
     Returns:
         y_cum: knife edge plot
