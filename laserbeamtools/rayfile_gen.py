@@ -7,19 +7,116 @@ Routines for generating ZEMAX rayfiles from images.
 
 Full documentation is available at TODO>
 """
-
 import numpy as np
-import random
-from PIL import Image
-import scipy.ndimage
+import os
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 import laserbeamtools as lbs
 
 __all__ = ('Rayfile_gen',
            'Weighted_far_field',
            'open_spectrum'
            )
+
+class Weighted_far_field:
+    """
+    A class representing an employee.
+ 
+    Attributes:
+        ff (numpy array): pixel array from the far field camera.
+        v (list): list off all unit vectors built from the far field image.
+    """
+
+    def __init__(self, 
+                 ff_img: np, 
+                 pixel_size_um: float, 
+                 flen_mm: float, 
+                 floor: float=0):
+        """
+        Initialize the Weighted_far_field object.
+
+        Args:
+            ff_img: far field array
+            pixel_size: camera pixel size, must be in um
+            flen: far field lens effective focal length, must also be in um 
+            floor: (optional) floor value that a pixel must exceed to be considered for a vector
+        """
+        # TODO:
+        # Floor option
+        
+        # Convert flen to um
+        flen = flen_mm * 1000 #um
+        
+        # Copy input array and normalize
+        self.ff = np.copy(ff_img)
+        self.ff[self.ff < abs(floor)] = 0.0
+        self.ff = self.ff/np.sum(self.ff)
+
+        # Flatten array
+        self.ff_flat = self.ff.flatten()
+
+        # Generate index list
+        self.i = np.linspace(0, len(self.ff_flat), len(self.ff_flat), endpoint=False, dtype=int)
+        
+        # Camera shape and scaled values
+        vv, hh = self.ff.shape
+        self.s = pixel_size_um / flen
+        h_s = hh * self.s
+        v_s = vv * self.s
+
+        # Create index arrays (vi : vertical index array) (hi : horizontal index array)
+        vi, hi = (np.indices(self.ff.shape))
+
+        # Index arrays (vi_s : vertical index scaled) (hi_s : horizontal index scaled)
+        vi_s = (vi * self.s) - (v_s / 2)
+        hi_s = (hi * self.s) - (h_s / 2)
+
+        # Projection of vectors
+        z_proj = (1 + hi_s**2 + vi_s**2)**(-1/2)
+        x_proj = hi_s * z_proj
+        y_proj = vi_s * z_proj
+
+        # Flattened arrays
+        self.z_proj_flat = z_proj.flatten()
+        self.x_proj_flat = x_proj.flatten()
+        self.y_proj_flat = y_proj.flatten()
+
+        return
+
+    def get_vectors(self, num: int):
+        """
+        Returns a list of vectors chosen by the weighted distribution
+
+        Args:
+            num: number of vectors to choose
+
+        Returns:
+            x_list: list of x components of unit vectors
+            y_list: list of y components of unit vectors
+            z_list: list of z components of unit vectors
+        """
+        indexes = np.random.choice(self.i, num, p=self.ff_flat)
+        x_list = self.x_proj_flat[indexes]
+        y_list = self.y_proj_flat[indexes]
+        z_list = self.z_proj_flat[indexes]
+
+        return x_list, y_list, z_list
+
+    def preview_ff(self) -> None:
+        """
+        Preview the data from the far field.
+        """
+        lbs.plot_knife_edge_analysis(self.ff, 
+                                     pixel_size=self.s * 1000, 
+                                     units='mrad', 
+                                     title='Far Field Knife-Edge Analysis')
+        return
+    
+    def preview_dist(self) -> None:
+        ff_flat = self.ff.flatten()
+
+        plt.plot(ff_flat)
+
+        return
 
 
 class Rayfile_gen:
@@ -31,11 +128,11 @@ class Rayfile_gen:
         wff: weighted far field
     """
     def load_nf(self,
-                nf_img, 
-                pixel_size_um, 
-                magnification,
-                quash_noise=True,
-                crop=True
+                nf_img: np, 
+                pixel_size_um: float, 
+                magnification: float,
+                quash_noise: bool=True,
+                crop: bool=True
                 ) -> None:    
         """
         Loads in the near image
@@ -89,14 +186,14 @@ class Rayfile_gen:
 
 
     def load_ff(self,
-                ff_img, 
-                pixel_size_um, 
-                flen_mm,
-                floor=0,
-                quash_noise=True,
-                crop=True,
-                precrop=True,
-                precrop_frac=0.7
+                ff_img: np, 
+                pixel_size_um: float, 
+                flen_mm: float,
+                floor: float=0,
+                quash_noise: bool=True,
+                crop: bool=True,
+                precrop: bool=True,
+                precrop_frac: float=0.7
                 ) -> None:
         """
         Loads the far field data. All far field data is embedded in the wff object.
@@ -134,9 +231,9 @@ class Rayfile_gen:
         
 
     def open_spectrum_file(self, 
-                           file_name, 
-                           delimiter='\t', 
-                           skip_start = 1
+                           file_name: str, 
+                           delimiter: str='\t', 
+                           skip_start: int=1
                            )->None:
         """
         Method to load spectrum data from a text file.
@@ -174,32 +271,40 @@ class Rayfile_gen:
 
 
     def load_spectrum(self, 
-                      wavelengths, 
-                      intensities
+                      wavelengths_um:np, 
+                      intensities:np
                       )->None:
         """
         Method to load spectrum data from a text file.
 
         Args:
-            file_name: full file path to file.
-            delimiter: delimiters in file.
-            skip_start: skip start rows
+            wavelenghts: wavelength array.
+            intensities: intensity array.
         
         Returns:
             [wavelengths, intensities]: wavelengths are their corresponding intensities in the signal.
         """
+
         # wavelength data
-        self.wavelengths = np.asarray(wavelengths)
+        self.wavelengths = np.asarray(wavelengths_um)
+
+        if np.average(self.wavelengths) > 100:
+            print("Wavelengths look to be in nm, convert to um...")
+            self.wavelengths = self.wavelengths/1000
 
         # intensity data
         intensities = np.asarray(intensities)
-        # intensities = intensities - np.min(intensities)
-        self.intensities = intensities/np.sum(intensities)
+
+        if np.min(intensities) < 0:
+            intensities = intensities - np.min(intensities)
+
+        self.intensities = intensities/np.sum(intensities)        
 
         return None
         
-    def generate(self, 
-                 output_filename='custom_rayfile.DAT'
+    def generate(self,
+                 output_filename: str='custom_rayfile.DAT',
+                 rays: int=10000, 
                  )->None:
         """
         Method to actually generate the rayfile.
@@ -207,154 +312,71 @@ class Rayfile_gen:
         Args:
             output_filename:
         """
-        print("Generating rayfile, this may take some time...")
+        print("Generating rayfile with %s rays, this may take some time..." % rays)
+
+        floor = 0
 
         # generate wavelength array
-        wavelength_array = np.random.choice(self.wavelengths, self.vv * self.hh, p=self.intensities)
+        # rays = np.sum(self.nf > floor)
 
-        x_axis = np.linspace(-self.x1, self.x1, self.hh)
-        y_axis = np.linspace(-self.y1, self.y1, self.vv)
+        # Weighted random wavelength list
+        wl_vals = np.random.choice(self.wavelengths, rays, p=self.intensities) # wavelength in micron
 
-        index = 0
-        line = []
-        for j in range(0,self.hh):
-            for i in range(0,self.vv):
+        # Weighted random ray unit vector lists
+        vx, vy, vz = self.wff.get_vectors(rays)
 
-                #x y z l m n i w
-                if(self.nf[i,j] > 0):
-                    # Get a unit vector string from weighted far field object
-                    uvs = self.wff.get_vector()
+        # flattened near field
+        self.nf_flat = self.nf.flatten()
+        self.nf_flat = self.nf_flat / np.sum(self.nf_flat)
 
-                    # Get wavelength value
-                    wl = wavelength_array[index]
+        # Create an index list
+        self.i = np.linspace(0, len(self.nf_flat), len(self.nf_flat), endpoint=False, dtype=int)
 
-                    # Append line
-                    line.append("{:.5f} {:.5f} 0 {} {:.5f} {:.4f}\n".format(x_axis[j]/1000, y_axis[i]/1000, uvs, self.nf[i,j]*100000, wl/1000))
-                    
-                    # Increment index
-                    index += 1
-                
-        # Randomize ray order
-        print("Radomizing ray order...")
-        random.shuffle(line)
+        # Only pick indexes that are above floor value
+        i_removed_floor = self.i[self.nf_flat > floor]
+
+        # Weighted random indexes
+        indexes = np.random.choice(i_removed_floor, rays)
+
+        # Camera shape and scaled values
+        vv, hh = self.nf.shape
+        h_s = hh * self.s
+        v_s = vv * self.s
+        vi, hi = (np.indices(self.nf.shape))
+        vi_s = (vi * self.s) - (v_s / 2)
+        hi_s = (hi * self.s) - (h_s / 2)
+        vi_s_flat = vi_s.flatten()
+        hi_s_flat = hi_s.flatten()
+
+        # Randomized lists
+        x_coords = hi_s_flat[indexes]/1000 # x coords in mm
+        y_coords = vi_s_flat[indexes]/1000 # y coords in mm
+        power_vals = self.nf_flat[indexes]
+
+        power_vals = power_vals / np.max(power_vals) # Make max value 1.0
 
         # Create output file
         with open(output_filename, 'w') as writer:
-            writer.write("{} 4\n".format(index))
-            for l in line:
-                writer.write(l)
+            
+            # Line 1
+            writer.write("{} 4\n".format(rays))
+            
+            # Remaining lines
+            for i in range(0,rays):
+                line_str = "{:.5f} {:.5f} 0 {:.10f} {:.10f} {:10f} {:.4f} {:.4f}\n".format(x_coords[i], y_coords[i],
+                                                                                            vx[i], vy[i], vz[i],
+                                                                                            power_vals[i],
+                                                                                            wl_vals[i])
+                writer.write(line_str)
 
-        print("Rayfile succesfully generated, saved under:\n\t%s" % output_filename)
+        print("Rayfile succesfully generated, saved under:\n\t%s\n\t\t%s" % (os.getcwd(), output_filename))
         
         return None
-
-class Weighted_far_field:
-    """
-    A class representing an employee.
- 
-    Attributes:
-        ff (numpy array): pixel array from the far field camera.
-        v (list): list off all unit vectors built from the far field image.
-    """
-
-    def __init__(self, 
-                 ff_img, 
-                 pixel_size_um=4.4, 
-                 flen_mm=80, 
-                 floor=0):
-        """
-        Initialize the Weighted_far_field object.
-
-        Args:
-            ff_img: far field array
-            pixel_size: camera pixel size, must be in um
-            flen: far field lens effective focal length, must also be in um 
-            floor: floor value that a pixel must exceed to be considered for a vector
-        """
-        # Convert flen to um
-        flen = flen_mm * 1000 #um
-        
-        # Copy input array
-        self.ff = np.copy(ff_img)
-        self.ff = self.ff/np.sum(self.ff)
-        
-        # Camera shape
-        vv, hh = self.ff.shape
-        self.s = pixel_size_um / flen
-        h_s = hh * self.s
-        v_s = vv * self.s
-        x1 = h_s / 2
-        y1 = v_s / 2
-  
-        # Empty lists
-        self.__cff = [] # Cumulative far field
-        self.v = [] # Vector string list
-        
-        # Temp variable
-        tmp = 0.0
-
-        # Scan over entire image
-        for j in range(0,hh):
-            for i in range(0,vv):
-
-                # Check if pixel value is greater than 0
-                if(self.ff[i,j] > floor):
-                    
-                    # Temp keeps track of cumulative sum
-                    tmp = tmp + self.ff[i,j] 
-                    
-                    # Ray pointing
-                    tx_ = (j * self.s) - x1          # Pointing in x
-                    ty_ = (i * self.s) - y1          # Pointing in y
-                    
-                    # Convert to unit vector
-                    zvc = (1 + tx_**2 + ty_**2)**(-1/2) # Z component of vector
-                    xvc = tx_ * zvc                     # X component of vector
-                    yvc = ty_ * zvc                     # Y component of vector
-                    
-                    # Format unit vector string
-                    vstr = "{} {} {}".format(xvc, yvc, zvc)
-                    
-                    # Append values to list
-                    self.v.append(vstr)
-                    self.__cff.append(tmp)
-        
-        # Verify sum
-        print(self.__cff[-1])
-        
-        return
-
-    def preview_ff(self) -> None:
-        """
-        Preview the data from the far field.
-        """
-        lbs.plot_knife_edge_analysis(self.ff, 
-                                     pixel_size=self.s, 
-                                     units='mrad', 
-                                     title='Far Field Knife-Edge Analysis')
-        return
-
-    def get_vector(self) -> None:
-        """
-        Input a value between 0 and 1, returns a ray string.
-
-        Args:
-            num: number between 0 and 1, picks the ray
-        Returns:
-            vstr: ray unit vector string
-        """
-        num = random.random()
-        for i in range(0,len(self.__cff)):
-            if(num < self.__cff[i]):
-                return self.v[i]
-
-        return "0 0 1"
-
-
-def open_spectrum(file_name, 
-                  delimiter='\t', 
-                  skip_start = 1, 
-                  normalize=True
+    
+def open_spectrum(file_name: str, 
+                  delimiter: str='\t', 
+                  skip_start: int=1, 
+                  normalize: bool=True
                   )->None:
     """
     Method to load spectrum data from a text file.
