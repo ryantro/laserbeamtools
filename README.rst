@@ -41,7 +41,7 @@ Example::
     # Generate rayfile
     rg.generate('BLE_09_100k.DAT', rays = 100000)
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/rayfile_example2.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/rayfile_example2.png
    :alt: Rayfile
 
 Determining the beam size in an image
@@ -78,7 +78,7 @@ Example::
                             nf_units='mm'
                             )
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/BLE-023_All.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/BLE-023_All.png
    :alt: Report 1
 
 Knife-Edge
@@ -94,7 +94,7 @@ To find the knife-edge widths of a beam::
     # Call plotting method
     lbt.plot_knife_edge_analysis(img, pixel_size=4.4 / 0.59 / 1000, units='mm')
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/ke01.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/ke01.png
    :alt: Knife-Edge 1
 
 or::
@@ -107,7 +107,7 @@ or::
     # Call plotting method
     lbt.plot_knife_edge_analysis(img, pixel_size=4.4 / 80, units='mrad')
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/ke02.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/ke02.png
    :alt: Knife-Edge 2
 
 D4_sigma
@@ -118,7 +118,7 @@ Finding the center and dimensions of a good beam image::
     import imageio.v3 as iio
     import laserbeamsize as lbs
     
-    file = "https://github.com/ryantro/laserbeamtools/blob/main/docs/t-hene.pgm"
+    file = "https://github.com/ryantro/laserbeamtools/blob/master/docs/t-hene.pgm"
     image = iio.imread(file)
     
     x, y, dx, dy, phi = lbs.beam_size(image)
@@ -141,7 +141,7 @@ A visual report can be done with one function call::
     
 produces something like
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/hene-report.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/hene-report.png
    :alt: HeNe report
 
 or::
@@ -151,7 +151,7 @@ or::
 
 produces something like
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/astigmatic-report.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/astigmatic-report.png
    :alt: astigmatic report
 
 Non-gaussian beams work too::
@@ -163,7 +163,7 @@ Non-gaussian beams work too::
 
 produces
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/tem02.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/tem02.png
    :alt: TEM02
 
 Determining the beam divergence of a far field image
@@ -186,7 +186,7 @@ than two Rayleigh distances::
 
 produces
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/m2fit.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/m2fit.png
    :alt: fit for M2
 
 Here is an analysis of a set of images that do not meet the ISO 11146
@@ -215,7 +215,7 @@ the optical table.::
 
 produces
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/sbmontage.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/sbmontage.png
    :alt: montage of laser images
 
 Here is one way to plot the fit using the above diameters::
@@ -228,7 +228,7 @@ of a pure gaussian beam.  Since real beams should diverge faster than this (not 
 there is some problem with the measurements (too few!).  On the other hand, the M² value 
 the semi-major axis 2.6±0.7 is consistent with the expected value of 3 for the TEM₁₀ mode.
 
-.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/sbfit.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/master/docs/sbfit.png
    :alt: fit
 
 
