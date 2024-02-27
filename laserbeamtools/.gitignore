@@ -1,0 +1,12 @@
+.DS_Store
+*.pyc
+.tox
+.eggs
+.virtual_documents
+dist
+laserbeamsize/__pycache__
+laserbeamsize.egg-info
+docs/.ipynb_checkpoints
+docs/_build
+docs/api
+todo
