@@ -10,57 +10,104 @@ algorithm less sensitive to background offset and noise.
 This module also supports M² calculations based on a series of images
 collected at various distances from the focused beam. 
 
-**Not yet updated for this fork.**
-
-Extensive documentation can be found at <https://laserbeamsize.readthedocs.io>
-
-Planned Added Features
------------------------
-
-- Knife edge measurements, e.g., 10%-90% and 5%-95% in minor and major axis.
-- Knife edge plots.
-- Measuring and lotting in angle space for far field images.
-- M² determination from near filed and far field camera images.
-- Rayfile generation for ZEMAX non-sequatial mode.
-
 Installation
 ------------
 
-**Not yet updated for this fork.**
+Package is not on PyPi, pip must be pointed to the downloaded directory to install.
 
 Use ``pip``::
     
-    pip install --user laserbeamsize
+    pip install -e ./laserbeamtools
 
-or ``conda``::
+ZEMAX Rayfile generation
+-------------------------
 
-    conda install -c conda-forge laserbeamsize
+ZEMAX non-sequatial rayfiles may be generated given a near-field and far-field image.
 
+Example::
 
-or use immediately by clicking the Google Colaboratory button below
+    # Create rayfile generation object
+    rg = lbt.Rayfile_gen()
 
-.. image:: https://colab.research.google.com/assets/colab-badge.svg
-  :target: https://colab.research.google.com/github/ryantro/laserbeamsize/blob/master
-  :alt: Colab
+    # Load near-field array
+    rg.load_nf(nf_c, pixel_size_um=4.4, magnification=0.59)
+
+    # Load far-field array
+    rg.load_ff(ff_c, pixel_size_um=4.4, flen_mm=80)
+
+    # Load Spectrum data
+    rg.load_spectrum(spec_x_t, spec_y_t)
+
+    # Generate rayfile
+    rg.generate('BLE_09_100k.DAT', rays = 100000)
+
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/rayfile_example2.png
+   :alt: Rayfile
 
 Determining the beam size in an image
 -------------------------------------
+
+Near and Far Field Report Generation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A report that outlines the near a far field characteristics of a beam can be generated
+given the near and far field beam images.
+
+Example::
+
+    # Import laserbeamtools
+    import laserbeamtools as lbt
+
+    # Load images into arrays
+    folder = r'N:/PRODUCTION/BL/BeamExpander/COL-006/BLE-023/Raw'
+    ff_img = lbt.load_img(folder+'/Module_All_FF.bmp')
+    nf_img = lbt.load_img(folder+'/Module_All_NF.bmp')
+
+    # Run analysis method
+    lbt.near_and_far_profiles(nf_img,
+                            ff_img, 
+                            title='BLE-023 All', 
+                            ff_lens=300,
+                            ff_units='mrad',
+                            ffprecrop=0,
+                            ff_pixel_size=2.2,
+                            nf_pixel_size=2.2,
+                            nfprecrop=0.4, 
+                            nf_mag=0.1307, 
+                            nf_scale_down=1000, 
+                            nf_units='mm'
+                            )
+
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/BLE-023_All.png
+   :alt: Report 1
+
 Knife-Edge
 ^^^^^^^^^^^
 
 To find the knife-edge widths of a beam::
 
-    # TODO:
-    # - Show code to produce plots
+    import laserbeamtools as lbt
 
-.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/ke01.png
+    # Load image file
+    img = lbt.load_img(nf1_file)
+
+    # Call plotting method
+    lbt.plot_knife_edge_analysis(img, pixel_size=4.4 / 0.59 / 1000, units='mm')
+
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/ke01.png
    :alt: Knife-Edge 1
 
 or::
+    
+    import laserbeamtools as lbt
 
-    # More code
+    # Load image file
+    img = lbt.load_img(ff2_file)
 
-.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/ke02.png
+    # Call plotting method
+    lbt.plot_knife_edge_analysis(img, pixel_size=4.4 / 80, units='mrad')
+
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/ke02.png
    :alt: Knife-Edge 2
 
 D4_sigma
@@ -71,7 +118,7 @@ Finding the center and dimensions of a good beam image::
     import imageio.v3 as iio
     import laserbeamsize as lbs
     
-    file = "https://github.com/ryantro/laserbeamsize/raw/master/docs/t-hene.pgm"
+    file = "https://github.com/ryantro/laserbeamtools/blob/main/docs/t-hene.pgm"
     image = iio.imread(file)
     
     x, y, dx, dy, phi = lbs.beam_size(image)
@@ -94,7 +141,7 @@ A visual report can be done with one function call::
     
 produces something like
 
-.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/hene-report.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/hene-report.png
    :alt: HeNe report
 
 or::
@@ -104,7 +151,7 @@ or::
 
 produces something like
 
-.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/astigmatic-report.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/astigmatic-report.png
    :alt: astigmatic report
 
 Non-gaussian beams work too::
@@ -116,7 +163,7 @@ Non-gaussian beams work too::
 
 produces
 
-.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/tem02.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/tem02.png
    :alt: TEM02
 
 Determining the beam divergence of a far field image
@@ -139,7 +186,7 @@ than two Rayleigh distances::
 
 produces
 
-.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/m2fit.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/m2fit.png
    :alt: fit for M2
 
 Here is an analysis of a set of images that do not meet the ISO 11146
@@ -168,7 +215,7 @@ the optical table.::
 
 produces
 
-.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/sbmontage.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/sbmontage.png
    :alt: montage of laser images
 
 Here is one way to plot the fit using the above diameters::
@@ -181,7 +228,7 @@ of a pure gaussian beam.  Since real beams should diverge faster than this (not 
 there is some problem with the measurements (too few!).  On the other hand, the M² value 
 the semi-major axis 2.6±0.7 is consistent with the expected value of 3 for the TEM₁₀ mode.
 
-.. image:: https://raw.githubusercontent.com/ryantro/laserbeamtools/master/docs/sbfit.png
+.. image:: https://github.com/ryantro/laserbeamtools/blob/main/docs/sbfit.png
    :alt: fit
 
 

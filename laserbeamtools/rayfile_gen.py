@@ -178,7 +178,7 @@ class Rayfile_gen:
 
         """
         lbs.plot_knife_edge_analysis(self.nf, 
-                                     pixel_size=self.pixel_size/self.mag/1000, 
+                                     pixel_size=self.pixel_size_um/self.mag/1000, 
                                      units='mm',
                                      title='Near Field Knife-Edge Analsis')
         
@@ -229,6 +229,13 @@ class Rayfile_gen:
         
         return None
         
+    def preview_ff(self):
+        """
+        Preview the far field data
+        """
+        self.wff.preview_ff()
+
+        return
 
     def open_spectrum_file(self, 
                            file_name: str, 

@@ -1,5 +1,0 @@
-name: my_environment
-channels:
-  - conda-forge
-dependencies:
-  - pandoc>=2.14.2,<4.0.0

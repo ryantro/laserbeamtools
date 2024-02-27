@@ -2,9 +2,11 @@ CHANGELOG.rst
 CITATION.cff
 LICENSE.txt
 MANIFEST.in
+Makefile.bak
 README.rst
 laserbeamtools.code-workspace
 pyproject.toml
+release.txt.bak
 requirements.txt
 setup.cfg
 setup.py
@@ -112,6 +114,8 @@ tests/test_beam_profiles/DAS/nf_aper_12.bmp
 tests/test_beam_profiles/DAS/nf_aper_34.bmp
 tests/test_beam_profiles/DAS/nf_aper_post.bmp
 tests/test_beam_profiles/DAS/nf_flip_1234.bmp
+tests/test_beam_profiles/Error Causing/MOD_CH1_FF.bmp
+tests/test_beam_profiles/Error Causing/MOD_CH1_NF.bmp
 tests/test_beam_profiles/For_Rayfile_Gen/09/100dc.txt
 tests/test_beam_profiles/For_Rayfile_Gen/09/FF CW Full Module_0001.ascii.csv
 tests/test_beam_profiles/For_Rayfile_Gen/09/NF CW Full Module_0001.ascii.csv

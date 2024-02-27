@@ -17,8 +17,6 @@ __all__ = ('near_and_far_profiles',
            )
 
 
-
-
 class Beam_profile:
 
     def __init__(self,  img,
@@ -55,16 +53,27 @@ class Beam_profile:
             self.unit_str = units
         self.img = img
 
-        # Subtract background
-        self.wimg = lbs.subtract_iso_background(self.img)
+        # Create working image
+        self.wimg = lbs.subtract_iso_background(self.img,
+                                                corner_fraction=corner_fraction,
+                                                nT=nT,
+                                                iso_noise=iso_noise)
+        
+        # Plot title
         self.title = title
+
+        # Camera variables
         self.pixel_size = pixel_size
         self.units = units
         self.crop = crop
         self.cmap = cmap
+
+        # Calculation variables
         self.corner_fraction = corner_fraction
         self.nT = nT
         self.iso_noise = iso_noise
+
+        # Arg formatting
         self.bs_args = dict((k, kwargs[k]) for k in ['mask_diameters', 'max_iter', 'phi'] if k in kwargs)
         self.bs_args['iso_noise'] = iso_noise
         self.bs_args['nT'] = nT
@@ -74,7 +83,7 @@ class Beam_profile:
         self.__ran_beam_size = False
         self.__ran_knife_edge = False
 
-        # Init values
+        # Default knife-edge value
         self.kep = [0.05, 0.95]
 
         return
@@ -100,7 +109,10 @@ class Beam_profile:
         self.wimg = self.img[vd:(vv-vd), hd:(hh-hd)]
 
         # Subtract background
-        self.wimg = lbs.subtract_iso_background(self.wimg)
+        self.wimg = lbs.subtract_iso_background(self.wimg,
+                                                corner_fraction=self.corner_fraction,
+                                                nT=self.nT,
+                                                iso_noise=self.iso_noise)
 
         return None
 
@@ -121,6 +133,14 @@ class Beam_profile:
         self.dy_s = self.dy * self.scale
         self.major_s = np.max([self.dx_s, self.dy_s])
         self.minor_s = np.min([self.dx_s, self.dy_s])
+
+        # Absolute coords
+        self.v_s_ = self.v_s 
+        self.h_s_ = self.h_s 
+        self.x_ = self.x
+        self.y_ = self.y
+        self.x_s_ = self.x_s
+        self.y_s_ = self.y_s
 
         # Function ran
         self.__ran_beam_size = True
@@ -179,13 +199,24 @@ class Beam_profile:
 
         return None
     
-    def gen_rotated(self):
+    def crop_to_int(self) -> None:
+        """
+        Crop the array to just the integration region
+        """
+        self.wimg, self.x, self.y  = lbs.crop_image_to_integration_rect(self.wimg, self.x, self.y, self.dx, self.dy, self.phi)
+        self.vv,self.hh = self.wimg.shape
+        self.v_s = self.vv * self.scale
+        self.h_s = self.hh * self.scale
+        self.x_s = self.x * self.scale
+        self.y_s = self.y * self.scale
+        return None
+    
+    def gen_rotated(self) -> None:
         """
         Generate rotated object.
         """
-        img_r = lbs.rotate_image(self.mwimg, self.x, self.y, -self.phi)
-        x_r_, y_r_, dx_r_, dy_r_, _ = lbs.beam_size(img_r, **self.bs_args)
-        img_r, _, _  = lbs.crop_image_to_integration_rect(img_r, x_r_, y_r_, dx_r_, dy_r_, 0)
+
+        img_r = lbs.rotate_image(self.wimg, self.x, self.y, -self.phi)
 
         self.rotated = Beam_profile(img_r,
                         title=self.title+' Rotated',
@@ -193,15 +224,17 @@ class Beam_profile:
                         units=self.units,
                         crop=self.crop,
                         cmap=self.cmap,
-                        **self.bs_args
-                        )
+                        **self.bs_args)
                                 
-        return
+        return None
 
 def near_and_far_profiles(nf_img, ff_img, title='COL-XX', 
                           nf_pixel_size=2.2, nf_mag=0.59, nf_scale_down=1000, nf_units='µm', 
                           ff_pixel_size=2.2, ff_lens=80, ff_units='mrad', 
-                          kep=[0.10,0.90], ffprecrop=0.7, nfprecrop=0.0, save=True):
+                          kep=[0.10,0.90], ffprecrop=0.0, nfprecrop=0.0, 
+                          save=True, save_name="", show_plt=True,
+                          ff_nT=4, nf_nT=4, ff_iso=True, nf_iso=False,
+                          ff_int_crop=False, nf_int_crop=False):
     """
     Generate report of near and far field images.
 
@@ -220,20 +253,54 @@ def near_and_far_profiles(nf_img, ff_img, title='COL-XX',
         ffprecrop: (optional) precrop factor for far field image
         nfprecrop: (optional) precrop factor for near field image
         save: (optional) save option
+        save_name: (optional) name to save file as
+        show_plt: (optional) show the plot
+        ff_nT: (optional) near field noise threshold
+        nf_nT: (optional) far field noise threshold
+        ff_int_crop: (optional) crop far field image to integration region
+        nf_int_crop: (optional) crop near field image to integration region
+
+    Returns:
+        s_data_str: data array of the summary data
+            nfxc: near field x centration
+            nfyc: near field y centration
+            nf.x_kew: near field x width
+            nf.y_kew: near field y width
+            ffxc: far field x centration
+            ffyc: far field y centration
+            ff.x_kew: far field x width
+            ff.y_kew: far field y width
+            ff.rotated.circ: circularity
+            ff.rotated.x_kew: major width
+            ff.rotated.y_kew: minor width
+            xbpp: x bpp
+            ybpp: y bpp
+            xbpp*ms: x M2
+            ybpp*ms: y M2
 
     """
     # small font size
     sf = 12
     
     # Create beam profile objects
-    nf = Beam_profile(nf_img, title='Near Field', pixel_size=nf_pixel_size/(nf_mag*nf_scale_down), units=nf_units)
-    ff = Beam_profile(ff_img, title='Far Field', pixel_size=(ff_pixel_size/ff_lens), units=ff_units)
+    nf = Beam_profile(nf_img, title='Near Field', pixel_size=nf_pixel_size/(nf_mag*nf_scale_down), units=nf_units, iso_noise=nf_iso, nT=nf_nT)
+    ff = Beam_profile(ff_img, title='Far Field', pixel_size=(ff_pixel_size/ff_lens), units=ff_units, iso_noise=ff_iso, nT=ff_nT)
+    
+    # pre cropping
+    if nfprecrop > 0.0:
+        nf.precrop(nfprecrop)
+    if ffprecrop > 0.0:
+        ff.precrop(ffprecrop)
 
-    # Run calcs on objects
-    nf.precrop(nfprecrop)
-    ff.precrop(ffprecrop)
+    # Beam size calculations
     nf.beam_size()
     ff.beam_size()
+
+    # Crop to integration region
+    if nf_int_crop:
+        nf.crop_to_int()
+    if ff_int_crop:
+        ff.crop_to_int()
 
     # Knife-edge objects
     nf.knife_edge(kep)
@@ -244,141 +311,11 @@ def near_and_far_profiles(nf_img, ff_img, title='COL-XX',
     ff.rotated.beam_size()
     ff.rotated.knife_edge(kep)
 
-    # Create subplots
-    fig, axs = plt.subplots(3, 2, figsize=(18, 18))
-    fig.suptitle(title, fontsize=30)
-
-    for i, xf in enumerate([nf,ff]):
-
-        # Plot image
-        extent = np.array([-xf.h_s/2, xf.h_s/2, xf.v_s/2, -xf.v_s/2])
-        im = axs[0,i].imshow(xf.wimg, extent=extent, cmap=xf.cmap) #, cmap='gist_ncar')
-        plt.colorbar(im, ax=axs[0,i], fraction=0.046 * xf.v_s / xf.h_s, pad=0.04)
-
-        # Ellipse array
-        xp,yp = lbs.ellipse_arrays(xf.x, xf.y, xf.dx, xf.dy, xf.phi) * xf.scale
-        axs[0,i].plot(xp-xf.h_s/2,yp-xf.v_s/2,':y')
-
-        if i == 1:
-            # Rectangular array
-            xp,yp = lbs.rotated_rect_arrays(xf.x, xf.y, xf.dx, xf.dy, xf.phi) * xf.scale
-            axs[0,i].plot(xp-xf.h_s/2,yp-xf.v_s/2,':y')
-
-            # Axes array
-            xp, yp = lbs.axes_arrays(xf.x, xf.y, xf.dx, xf.dy, xf.phi) * xf.scale
-            axs[0,i].plot(xp-xf.h_s/2,yp-xf.v_s/2,':y')
-
-        # Crosshair array
-        xp, yp = lbs.axes_arrays(xf.hh/2, xf.vv/2, xf.hh/3, xf.vv/3, 0) * xf.scale
-        axs[0,i].plot(xp-xf.h_s/2,yp-xf.v_s/2,':r')#,linewidth=1)
-
-        # Plot formatting
-        axs[0,i].set_title(xf.title, fontsize=22)
-        axs[0,i].set_xlim(-xf.h_s/2, xf.h_s/2)
-        axs[0,i].set_ylim(xf.v_s/2, -xf.v_s/2)
-        axs[0,i].set_xlabel("X Coordinate (%s)" % xf.unit_str, fontsize=sf)
-        axs[0,i].set_ylabel("Y Coordinate (%s)" % xf.unit_str, fontsize=sf)
-
-        # Beam stats
-        m1 = 'Centroid: (%.2f, %.2f) %s' % (xf.x*xf.scale - xf.h_s/2, xf.y*xf.scale - xf.v_s/2, xf.unit_str)
-        m2 = 'D4\u03C3:        (%.2f, %.2f) %s' % (xf.dx_s, xf.dy_s, xf.unit_str)
-        m3 = 'D4\u03C3 Circ: %.2f' % (xf.minor_s/xf.major_s)
-        m4 = 'Angle:     %.2f\N{DEGREE SIGN}' % (xf.phi*180/np.pi)
-        axs[0,i].text(-xf.h_s/2 * 0.95, xf.v_s/2*0.95, '\n'.join([m1,m2,m3,m4]), va='bottom', ha='left',c='white',fontsize=10)
-
-        # Knife-edge plots x
-        # --------------------------------------------- #
-        axs[1,i].set_title(xf.title + ' X/Y Knife Edge Plots', fontsize=22)
-        axs[1,i].set_xlabel("Knife Position (%s)" % xf.unit_str, fontsize=sf)
-        axs[1,i].set_ylabel("Fractional Power", fontsize=sf)
-        axs[1,i].grid('on')
-
-        color = 'tab:blue'
-        axs[1,i].plot(xf.xax_ke_x * xf.scale, xf.xax_ke_y, color=color, label='X Knife-Edge')
-        
-        # Plot lines
-        axs[1,i].axvline(x=xf.xkep[0] * xf.scale, ymin=0.05, ymax=0.95, color=color, label='X {:.0f}%-{:.0f}% Points'.format(kep[0]*100, kep[1]*100), ls='--')
-        axs[1,i].axvline(x=xf.xkep[1] * xf.scale, ymin=0.05, ymax=0.95, color=color, ls='--')
-
-        # Show distance on plot
-        x_w = (xf.xkep[1]-xf.xkep[0]) * xf.scale
-        axs[1,i].annotate('', (xf.xkep[0] * xf.scale, kep[0]), (xf.xkep[1] * xf.scale, kep[0]), arrowprops=dict(arrowstyle= '<->',color=color))
-        axs[1,i].text(np.average(xf.xkep[1]) * xf.scale, kep[0], 'Δx=%.2f %s' % (x_w, xf.unit_str), va='center', ha='left',
-                      bbox=dict(facecolor='white', edgecolor=color, boxstyle='round'))
-
-        # Knife-edge plots y
-        # --------------------------------------------- #
-        color = 'tab:orange'
-        axs[1,i].plot(xf.yax_ke_x * xf.scale, xf.yax_ke_y, color=color, label='Y Knife-Edge')
-        
-        # Plot lines
-        axs[1,i].axvline(x=xf.ykep[0] * xf.scale, ymin=0.05, ymax=0.95, color=color, label='Y {:.0f}%-{:.0f}% Points'.format(kep[0]*100, kep[1]*100), ls='--')
-        axs[1,i].axvline(x=xf.ykep[1] * xf.scale, ymin=0.05, ymax=0.95, color=color, ls='--')
-
-        y_w = (xf.ykep[1]-xf.ykep[0]) * xf.scale
-        axs[1,i].annotate('', (xf.ykep[0] * xf.scale, kep[1]), (xf.ykep[1] * xf.scale, kep[1]), arrowprops=dict(arrowstyle= '<->',color=color))
-        axs[1,i].text(np.average(xf.ykep[0]) * xf.scale, kep[1], 'Δy=%.2f %s' % (y_w, xf.unit_str), va='center', ha='right',
-                      bbox=dict(facecolor='white', edgecolor=color, boxstyle='round'))
-
-        # Knife-edge plot legend
-        axs[1,i].legend(loc='center left')
-
-    # Rotated Far Field Plot
-    # =============================================== #
-    axs[2,1].set_title(ff.title + ' Minor/Major Knife Edge Plots', fontsize=22)
-    axs[2,1].set_xlabel("Knife Position (%s)" % ff.rotated.unit_str, fontsize=sf)
-    axs[2,1].set_ylabel("Fractional Power", fontsize=sf)
-    axs[2,1].grid('on')
-
-    # Determine major or minor
-    if ff.rotated.x_kew > ff.rotated.y_kew:
-        xlabel = 'Major Axis'
-        ylabel = 'Minor Axis'
-    else:
-        ylabel = 'Major Axis'
-        xlabel = 'Minor Axis'
-
-    color = 'tab:blue'
-    axs[2,1].plot(ff.rotated.xax_ke_x * ff.rotated.scale, ff.rotated.xax_ke_y, color=color, label=xlabel + ' Knife Edge')
-    
-    arrowprops=dict(arrowstyle= '<|-|>',color='blue',lw=3.5,ls='--')
-    # Plot lines
-    axs[2,1].axvline(x=ff.rotated.xkep[0] * ff.rotated.scale, ymin=0.05, ymax=0.95, color=color, label=xlabel + ' {:.0f}%-{:.0f}% Points'.format(ff.kep[0]*100, ff.kep[1]*100), ls='--')
-    axs[2,1].axvline(x=ff.rotated.xkep[1] * ff.rotated.scale, ymin=0.05, ymax=0.95, color=color, ls='--')
-
-    # Show distance on plot
-    axs[2,1].annotate('', (ff.rotated.xkep[0] * ff.rotated.scale, kep[0]), (ff.rotated.xkep[1] * ff.rotated.scale, ff.rotated.kep[0]), arrowprops=dict(arrowstyle= '<->',color=color))
-    axs[2,1].text(np.average(ff.rotated.xkep[1]) * ff.rotated.scale, ff.rotated.kep[0], 'Δx=%.2f %s' % (ff.rotated.x_kew, ff.unit_str), va='center', ha='left',
-                bbox=dict(facecolor='white', edgecolor=color, boxstyle='round'))
-
-    color = 'tab:orange'
-    axs[2,1].plot(ff.rotated.yax_ke_x * ff.rotated.scale, ff.rotated.yax_ke_y, color=color, label=ylabel + ' Knife Edge')
-    
-    # Plot lines
-    axs[2,1].axvline(x=ff.rotated.ykep[0] * ff.rotated.scale, ymin=0.05, ymax=0.95, color=color, label=ylabel + ' {:.0f}%-{:.0f}% Points'.format(ff.kep[0]*100, ff.kep[1]*100), ls='--')
-    axs[2,1].axvline(x=ff.rotated.ykep[1] * ff.rotated.scale, ymin=0.05, ymax=0.95, color=color, ls='--')
-
-    axs[2,1].annotate('', (ff.rotated.ykep[0] * ff.rotated.scale, kep[1]), (ff.rotated.ykep[1] * ff.rotated.scale, kep[1]), arrowprops=dict(arrowstyle= '<->',color=color))
-    axs[2,1].text(np.average(ff.rotated.ykep[0]) * ff.rotated.scale, kep[1], 'Δy=%.2f %s' % (ff.rotated.y_kew, ff.rotated.unit_str), va='center', ha='right',
-                bbox=dict(facecolor='white', edgecolor=color, boxstyle='round'))
-    
-    # Legend
-    axs[2,1].legend(loc='center left')
-
-    # Near Field Circle
-    circ = Circle((0,0),15, fc='None', edgecolor='orange')
-    axs[0,0].add_patch(circ)
-
-    operator = 'Ryan Robinson'
-    summary_data = []
     l0 = title + ' Summary'
     l01 ='-----------------------------------------------------------------------------------------------------'
 
     s1 = '\nSettings'
-    # s2 = 'Operator: %s' % operator
-    # s3 = 'Directory: '
-    # s4 = 'Run Date: '
-    # s5 = 'Software Version: '
+    
     s5 = '- Near Field Pixel Size: %.1f um' % nf_pixel_size
     s6 = '- Far Field Pixel Size: %.1f um' % ff_pixel_size
     s7 = '- Near Field Magnification: %.3f' % nf_mag
@@ -387,11 +324,15 @@ def near_and_far_profiles(nf_img, ff_img, title='COL-XX',
 
 
     l1 = '\nNear Field'
-    l2 = '- Centroid: (%.3f, %.3f) %s' % (nf.x*nf.scale - nf.h_s/2, nf.y*nf.scale - nf.v_s/2, nf.unit_str)
+    nfxc = nf.x_*nf.scale - nf.h_s_/2
+    nfyc = nf.y_*nf.scale - nf.v_s_/2
+    l2 = '- Centroid: (%.3f, %.3f) %s' % (nfxc, nfyc, nf.unit_str)
     l3 = '- KE Size: (%.3f, %.3f) %s' % (nf.x_kew, nf.y_kew, nf.unit_str)
 
     lf1 = '\nFar Field'
-    lf2 = '- Pointing: (%.3f, %.3f) %s' % (ff.x*ff.scale - ff.h_s/2, ff.y*ff.scale - ff.v_s/2, ff.unit_str)
+    ffxc = ff.x_*ff.scale - ff.h_s_/2
+    ffyc = ff.y_*ff.scale - ff.v_s_/2
+    lf2 = '- Pointing: (%.3f, %.3f) %s' % (ffxc, ffyc, ff.unit_str)
     lf3 = '- Divergence: (%.3f, %.3f) %s' % (ff.x_kew, ff.y_kew, ff.unit_str)
     lf4 = '- Minor/Major Divergence: (%.3f, %.3f) %s' % (np.min([ff.rotated.x_kew, ff.rotated.y_kew]), np.max([ff.rotated.x_kew, ff.rotated.y_kew]), ff.rotated.unit_str)
     lf5 = '- Ellipticity: %.3f' % ff.rotated.circ
@@ -404,18 +345,152 @@ def near_and_far_profiles(nf_img, ff_img, title='COL-XX',
     lb3 = '- M2:    (%.2f, %.2f)' % (xbpp*ms, ybpp*ms)
 
     s_data = [l0, l01, 
-              s1, s5, s6, s7, s8, s9, 
-              l1, l2, l3, 
-              lf1, lf2, lf3, lf4, lf5, 
-              lb1, lb2, lb3]
-    
+            s1, s5, s6, s7, s8, s9, 
+            l1, l2, l3, 
+            lf1, lf2, lf3, lf4, lf5, 
+            lb1, lb2, lb3]
     s_data_str = '\n'.join(s_data)
 
-    axs[2,0].text(0.01, 0.99, s_data_str, va='top', ha='left', fontsize=12, bbox=dict(facecolor='None', edgecolor='black', boxstyle='round'))
-    axs[2,0].axis('off')
+    d_data = [nfxc, nfyc, nf.x_kew, nf.y_kew, ffxc, ffyc, ff.x_kew, ff.y_kew, ff.rotated.circ, ff.rotated.x_kew, ff.rotated.y_kew, xbpp, ybpp, xbpp*ms, ybpp*ms]
 
-    if save:
-        plt.savefig(title+'.png')
-    plt.show()
+    if show_plt == True or save == True:
+        # Create subplots
+        fig, axs = plt.subplots(3, 2, figsize=(18, 18))
+        fig.suptitle(title, fontsize=30)
 
-    return
+        for i, xf in enumerate([nf,ff]):
+
+            # Plot image
+            extent = np.array([-xf.h_s/2, xf.h_s/2, xf.v_s/2, -xf.v_s/2])
+            im = axs[0,i].imshow(xf.wimg, extent=extent, cmap=xf.cmap)
+            plt.colorbar(im, ax=axs[0,i], fraction=0.046 * xf.v_s / xf.h_s, pad=0.04)
+
+            # Ellipse array
+            xp,yp = lbs.ellipse_arrays(xf.x, xf.y, xf.dx, xf.dy, xf.phi) * xf.scale
+            axs[0,i].plot(xp-xf.h_s/2,yp-xf.v_s/2,':y')
+
+            if i == 1:
+                # Rectangular array
+                xp,yp = lbs.rotated_rect_arrays(xf.x, xf.y, xf.dx, xf.dy, xf.phi) * xf.scale
+                axs[0,i].plot(xp-xf.h_s/2,yp-xf.v_s/2,':y')
+
+                # Axes array
+                xp, yp = lbs.axes_arrays(xf.x, xf.y, xf.dx, xf.dy, xf.phi) * xf.scale
+                axs[0,i].plot(xp-xf.h_s/2,yp-xf.v_s/2,':y')
+
+            # Crosshair array
+            xp, yp = lbs.axes_arrays(xf.hh/2, xf.vv/2, xf.hh/3, xf.vv/3, 0) * xf.scale
+            axs[0,i].plot(xp-xf.h_s/2,yp-xf.v_s/2,':r')#,linewidth=1)
+
+            # Plot formatting
+            axs[0,i].set_title(xf.title, fontsize=22)
+            axs[0,i].set_xlim(-xf.h_s/2, xf.h_s/2)
+            axs[0,i].set_ylim(xf.v_s/2, -xf.v_s/2)
+            axs[0,i].set_xlabel("X Coordinate (%s)" % xf.unit_str, fontsize=sf)
+            axs[0,i].set_ylabel("Y Coordinate (%s)" % xf.unit_str, fontsize=sf)
+
+            # Beam stats
+            m1 = 'Centroid: (%.2f, %.2f) %s' % (xf.x_*xf.scale - xf.h_s_/2, xf.y_*xf.scale - xf.v_s_/2, xf.unit_str)
+            m2 = 'D4\u03C3:        (%.2f, %.2f) %s' % (xf.dx_s, xf.dy_s, xf.unit_str)
+            m3 = 'D4\u03C3 Circ: %.2f' % (xf.minor_s/xf.major_s)
+            m4 = 'Angle:     %.2f\N{DEGREE SIGN}' % (xf.phi*180/np.pi)
+            axs[0,i].text(-xf.h_s/2 * 0.95, xf.v_s/2*0.95, '\n'.join([m1,m2,m3,m4]), va='bottom', ha='left',c='white',fontsize=10)
+
+            # Knife-edge plots x
+            # --------------------------------------------- #
+            axs[1,i].set_title(xf.title + ' X/Y Knife Edge Plots', fontsize=22)
+            axs[1,i].set_xlabel("Knife Position (%s)" % xf.unit_str, fontsize=sf)
+            axs[1,i].set_ylabel("Fractional Power", fontsize=sf)
+            axs[1,i].grid('on')
+
+            color = 'tab:blue'
+            axs[1,i].plot(xf.xax_ke_x * xf.scale, xf.xax_ke_y, color=color, label='X Knife-Edge')
+            
+            # Plot lines
+            axs[1,i].axvline(x=xf.xkep[0] * xf.scale, ymin=0.05, ymax=0.95, color=color, label='X {:.0f}%-{:.0f}% Points'.format(kep[0]*100, kep[1]*100), ls='--')
+            axs[1,i].axvline(x=xf.xkep[1] * xf.scale, ymin=0.05, ymax=0.95, color=color, ls='--')
+
+            # Show distance on plot
+            x_w = (xf.xkep[1]-xf.xkep[0]) * xf.scale
+            axs[1,i].annotate('', (xf.xkep[0] * xf.scale, kep[0]), (xf.xkep[1] * xf.scale, kep[0]), arrowprops=dict(arrowstyle= '<->',color=color))
+            axs[1,i].text(np.average(xf.xkep[1]) * xf.scale, kep[0], 'Δx=%.2f %s' % (x_w, xf.unit_str), va='center', ha='left',
+                        bbox=dict(facecolor='white', edgecolor=color, boxstyle='round'))
+
+            # Knife-edge plots y
+            # --------------------------------------------- #
+            color = 'tab:orange'
+            axs[1,i].plot(xf.yax_ke_x * xf.scale, xf.yax_ke_y, color=color, label='Y Knife-Edge')
+            
+            # Plot lines
+            axs[1,i].axvline(x=xf.ykep[0] * xf.scale, ymin=0.05, ymax=0.95, color=color, label='Y {:.0f}%-{:.0f}% Points'.format(kep[0]*100, kep[1]*100), ls='--')
+            axs[1,i].axvline(x=xf.ykep[1] * xf.scale, ymin=0.05, ymax=0.95, color=color, ls='--')
+
+            y_w = (xf.ykep[1]-xf.ykep[0]) * xf.scale
+            axs[1,i].annotate('', (xf.ykep[0] * xf.scale, kep[1]), (xf.ykep[1] * xf.scale, kep[1]), arrowprops=dict(arrowstyle= '<->',color=color))
+            axs[1,i].text(np.average(xf.ykep[0]) * xf.scale, kep[1], 'Δy=%.2f %s' % (y_w, xf.unit_str), va='center', ha='right',
+                        bbox=dict(facecolor='white', edgecolor=color, boxstyle='round'))
+
+            # Knife-edge plot legend
+            axs[1,i].legend(loc='center left')
+
+        # Rotated Far Field Plot
+        # =============================================== #
+        axs[2,1].set_title(ff.title + ' Minor/Major Knife Edge Plots', fontsize=22)
+        axs[2,1].set_xlabel("Knife Position (%s)" % ff.rotated.unit_str, fontsize=sf)
+        axs[2,1].set_ylabel("Fractional Power", fontsize=sf)
+        axs[2,1].grid('on')
+
+        # Determine major or minor
+        if ff.rotated.x_kew > ff.rotated.y_kew:
+            xlabel = 'Major Axis'
+            ylabel = 'Minor Axis'
+        else:
+            ylabel = 'Major Axis'
+            xlabel = 'Minor Axis'
+
+        color = 'tab:blue'
+        axs[2,1].plot(ff.rotated.xax_ke_x * ff.rotated.scale, ff.rotated.xax_ke_y, color=color, label=xlabel + ' Knife Edge')
+        
+        arrowprops=dict(arrowstyle= '<|-|>',color='blue',lw=3.5,ls='--')
+        # Plot lines
+        axs[2,1].axvline(x=ff.rotated.xkep[0] * ff.rotated.scale, ymin=0.05, ymax=0.95, color=color, label=xlabel + ' {:.0f}%-{:.0f}% Points'.format(ff.kep[0]*100, ff.kep[1]*100), ls='--')
+        axs[2,1].axvline(x=ff.rotated.xkep[1] * ff.rotated.scale, ymin=0.05, ymax=0.95, color=color, ls='--')
+
+        # Show distance on plot
+        axs[2,1].annotate('', (ff.rotated.xkep[0] * ff.rotated.scale, kep[0]), (ff.rotated.xkep[1] * ff.rotated.scale, ff.rotated.kep[0]), arrowprops=dict(arrowstyle= '<->',color=color))
+        axs[2,1].text(np.average(ff.rotated.xkep[1]) * ff.rotated.scale, ff.rotated.kep[0], 'Δx=%.2f %s' % (ff.rotated.x_kew, ff.unit_str), va='center', ha='left',
+                    bbox=dict(facecolor='white', edgecolor=color, boxstyle='round'))
+
+        color = 'tab:orange'
+        axs[2,1].plot(ff.rotated.yax_ke_x * ff.rotated.scale, ff.rotated.yax_ke_y, color=color, label=ylabel + ' Knife Edge')
+        
+        # Plot lines
+        axs[2,1].axvline(x=ff.rotated.ykep[0] * ff.rotated.scale, ymin=0.05, ymax=0.95, color=color, label=ylabel + ' {:.0f}%-{:.0f}% Points'.format(ff.kep[0]*100, ff.kep[1]*100), ls='--')
+        axs[2,1].axvline(x=ff.rotated.ykep[1] * ff.rotated.scale, ymin=0.05, ymax=0.95, color=color, ls='--')
+
+        axs[2,1].annotate('', (ff.rotated.ykep[0] * ff.rotated.scale, kep[1]), (ff.rotated.ykep[1] * ff.rotated.scale, kep[1]), arrowprops=dict(arrowstyle= '<->',color=color))
+        axs[2,1].text(np.average(ff.rotated.ykep[0]) * ff.rotated.scale, kep[1], 'Δy=%.2f %s' % (ff.rotated.y_kew, ff.rotated.unit_str), va='center', ha='right',
+                    bbox=dict(facecolor='white', edgecolor=color, boxstyle='round'))
+        
+        # Legend
+        axs[2,1].legend(loc='center left')
+
+        # Near Field Circle
+        circ = Circle((0,0),15, fc='None', edgecolor='orange')
+        axs[0,0].add_patch(circ)
+
+        
+
+        axs[2,0].text(0.01, 0.99, s_data_str, va='top', ha='left', fontsize=12, bbox=dict(facecolor='None', edgecolor='black', boxstyle='round'))
+        axs[2,0].axis('off')
+
+        if save:
+            if save_name == "":
+                plt.savefig(title + '.png')
+            else:
+                plt.savefig(save_name)
+        
+        if show_plt:
+            plt.show()
+
+    return d_data
