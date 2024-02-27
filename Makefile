@@ -13,28 +13,30 @@ html:
 	open docs/_build/index.html
 
 lint:
-	-pylint laserbeamsize/__init__.py
-	-pylint laserbeamsize/analysis.py
-	-pylint laserbeamsize/background.py
-	-pylint laserbeamsize/display.py
-	-pylint laserbeamsize/gaussian.py
-	-pylint laserbeamsize/masks.py
-	-pylint laserbeamsize/image_tools.py
-	-pylint laserbeamsize/m2_fit.py
-	-pylint laserbeamsize/m2_display.py
+	-pylint laserbeamtools/__init__.py
+	-pylint laserbeamtools/analysis.py
+	-pylint laserbeamtools/background.py
+	-pylint laserbeamtools/display.py
+	-pylint laserbeamtools/gaussian.py
+	-pylint laserbeamtools/masks.py
+	-pylint laserbeamtools/image_tools.py
+	-pylint laserbeamtools/m2_fit.py
+	-pylint laserbeamtools/m2_display.py
+	-pylint laserbeamtools/rayfile_gen.py
 	-pylint tests/test_all_notebooks.py
 
 
 doccheck:
-	-pydocstyle laserbeamsize/__init__.py
-	-pydocstyle laserbeamsize/analysis.py
-	-pydocstyle laserbeamsize/background.py
-	-pydocstyle laserbeamsize/display.py
-	-pydocstyle laserbeamsize/gaussian.py
-	-pydocstyle laserbeamsize/image_tools.py
-	-pydocstyle laserbeamsize/masks.py
-	-pydocstyle laserbeamsize/m2_fit.py
-	-pydocstyle laserbeamsize/m2_display.py
+	-pydocstyle laserbeamtools/__init__.py
+	-pydocstyle laserbeamtools/analysis.py
+	-pydocstyle laserbeamtools/background.py
+	-pydocstyle laserbeamtools/display.py
+	-pydocstyle laserbeamtools/gaussian.py
+	-pydocstyle laserbeamtools/image_tools.py
+	-pydocstyle laserbeamtools/masks.py
+	-pydocstyle laserbeamtools/m2_fit.py
+	-pydocstyle laserbeamtools/m2_display.py
+	-pydocstyle laserbeamtools/rayfile_gen.py
 
 rstcheck:
 	-rstcheck README.rst
@@ -69,8 +71,8 @@ clean:
 	rm -rf .virtual_documents
 	rm -rf __pycache__
 	rm -rf dist
-	rm -rf laserbeamsize.egg-info
-	rm -rf laserbeamsize/__pycache__
+	rm -rf laserbeamtools.egg-info
+	rm -rf laserbeamtools/__pycache__
 	rm -rf docs/_build
 	rm -rf docs/api
 	rm -rf docs/.ipynb_checkpoints
